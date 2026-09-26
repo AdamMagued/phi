@@ -10,6 +10,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.27.6] - 2026-09-27
+
+### Added
+
 - `!` shell commands complete from project history: typing `!git s` ranks recent
   commands with Jev and lists the completions above the composer. Tab (or Enter on
   a row that differs from what was typed) fills the highlighted command; a single
@@ -726,7 +740,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.27.5...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.27.6...HEAD
+[0.27.6]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.6
 [0.27.5]: https://github.com/pulseaiclub/phi/compare/v0.27.4...v0.27.5
 [0.27.4]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.4
 [0.27.3]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.3
