@@ -255,3 +255,33 @@ func TestComputeFileLists(t *testing.T) {
 		assert.Empty(t, modifiedFiles)
 	})
 }
+
+func TestStripFileOperations(t *testing.T) {
+	const readBlock = "\n\n<read-files>\na.go\n</read-files>"
+	const modifiedBlock = "\n\n<modified-files>\nb.go\n</modified-files>"
+	for _, tt := range []struct {
+		name                   string
+		summary                string
+		previousFileOperations string
+		want                   string
+	}{
+		{"no files", "summary\n", "", "summary\n"},
+		{"read only", "summary" + readBlock, readBlock, "summary"},
+		{"modified only", "summary" + modifiedBlock, modifiedBlock, "summary"},
+		{"both", "summary" + readBlock + modifiedBlock, readBlock + modifiedBlock, "summary"},
+		{
+			"embedded example", "example" + readBlock + "\nmore context" + modifiedBlock, modifiedBlock,
+			"example" + readBlock + "\nmore context",
+		},
+		{"unknown suffix", "summary" + readBlock, modifiedBlock, "summary" + readBlock},
+		{"no details", "summary" + readBlock, "", "summary" + readBlock},
+		{
+			"incomplete block", "summary\n\n<read-files>\na.go", readBlock,
+			"summary\n\n<read-files>\na.go",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, stripFileOperations(tt.summary, tt.previousFileOperations))
+		})
+	}
+}

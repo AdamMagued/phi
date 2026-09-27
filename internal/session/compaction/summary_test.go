@@ -115,3 +115,39 @@ func TestSummarizeMidTurnCut_CapsEachSummary(t *testing.T) {
 	assert.Contains(t, summary, "Turn Context (mid-turn cut)")
 	assert.ElementsMatch(t, []int{13107, 8192}, c.maxTokens)
 }
+
+func TestCompact_EmptyHistory(t *testing.T) {
+	for _, midTurn := range []bool{false, true} {
+		for _, previousSummary := range []string{"", "Keep the public API unchanged.\nPreserve exact error messages."} {
+			name := "history"
+			if midTurn {
+				name = "mid-turn"
+			}
+			if previousSummary != "" {
+				name += "/previous-summary"
+			} else {
+				name += "/no-previous-summary"
+			}
+			t.Run(name, func(t *testing.T) {
+				c := &captureCompactor{text: "Current turn context."}
+				prep := CompactionPreparation{PreviousSummary: previousSummary, IsMidTurnCut: midTurn}
+				want := previousSummary
+				if want == "" {
+					want = "No prior history."
+				}
+				wantCalls := 0
+				if midTurn {
+					prep.TurnPrefixMessages = []llm.Message{{Role: llm.RoleUser, Content: "fix the parser"}}
+					want += "\n\n---\n\n**Turn Context (mid-turn cut):**\n\nCurrent turn context."
+					wantCalls = 1
+				}
+
+				comp, err := Compact(t.Context(), prep, c)
+
+				require.NoError(t, err)
+				assert.Equal(t, want, comp.Summary)
+				assert.Len(t, c.prompts, wantCalls, "an empty history must not trigger a model request")
+			})
+		}
+	}
+}

@@ -96,6 +96,15 @@ func formatFileOperations(readFiles, modifiedFiles []string) string {
 	return "\n\n" + strings.Join(sections, "\n\n")
 }
 
+// Match the suffix reconstructed from the previous Details so similar text
+// in older summaries is not mistaken for an appended file-operation block.
+func stripFileOperations(summary, previousFileOperations string) string {
+	if previousFileOperations != "" && strings.HasSuffix(summary, previousFileOperations) {
+		return strings.TrimSuffix(summary, previousFileOperations)
+	}
+	return summary
+}
+
 func computeFileLists(fileOps *FileOperation) ([]string, []string) {
 	modifiedSet := make(map[string]struct{})
 	readFiles := []string{}
