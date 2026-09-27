@@ -34,8 +34,8 @@ type EngineRunner struct {
 	Gate         permission.Gate                     // nil → SpecForRole(job.Role).Mode on WorkDir
 	Tools        []tools.Tool                        // nil → SpecForRole(job.Role).Tools
 	MaxRounds    int                                 // 0 → Engine default
-	Extensions   *extension.Runner
-	ExtensionsFn func() *extension.Runner
+	Extensions   extension.Host
+	ExtensionsFn func() extension.Host
 }
 
 // Run implements [job.Runner].

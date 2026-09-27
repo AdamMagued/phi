@@ -18,6 +18,7 @@ import (
 	cli "github.com/pulseaiclub/pli"
 
 	"github.com/pulseaiclub/phi/internal/agent"
+	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
 	"github.com/pulseaiclub/phi/internal/llm"
 	"github.com/pulseaiclub/phi/internal/mcp"
@@ -137,7 +138,10 @@ func TestSelectedBuiltinToolsStillAppendExternalTools(t *testing.T) {
 	pool := mcp.NewPool(map[string]mcp.ServerConfig{
 		"echo": {Command: []string{"true"}},
 	})
-	t.Cleanup(func() { require.NoError(t, pool.Close()) })
+	// The runner owns the pool, so its Close is the only cleanup needed.
+	runner := extension.NewRunner()
+	t.Cleanup(runner.Close)
+	runner.AddPlugin(mcp.Plugin(pool))
 	jobs, err := job.New(job.Options{
 		Root: t.TempDir(),
 		Runner: job.RunnerFunc(func(_ context.Context, _ job.RunEnv) (string, error) {
@@ -153,7 +157,7 @@ func TestSelectedBuiltinToolsStillAppendExternalTools(t *testing.T) {
 		llm.ModelConfig{Name: "test", APIKey: "x", BaseURL: "http://127.0.0.1:9"},
 		sess,
 		agent.WithTools(selected),
-		agent.WithMCP(pool),
+		agent.WithExtensions(runner),
 		agent.WithJobs(jobs),
 	)
 	require.NoError(t, err)

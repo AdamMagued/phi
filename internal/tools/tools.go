@@ -6,7 +6,6 @@ import (
 	"github.com/pulseaiclub/phi/internal/tools/findtool"
 	"github.com/pulseaiclub/phi/internal/tools/greptool"
 	"github.com/pulseaiclub/phi/internal/tools/lstool"
-	"github.com/pulseaiclub/phi/internal/tools/mcptool"
 	"github.com/pulseaiclub/phi/internal/tools/readtool"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 	"github.com/pulseaiclub/phi/internal/tools/writetool"
@@ -60,11 +59,10 @@ type (
 	AgentResult = agenttool.AgentResult
 )
 
-// AgentTools, ParseAgentResult, and MCPTools are re-exported tool helpers.
+// AgentTools and ParseAgentResult are re-exported tool helpers.
 var (
 	AgentTools       = agenttool.AgentTools
 	ParseAgentResult = agenttool.ParseAgentResult
-	MCPTools         = mcptool.Tools
 )
 
 // DefaultTools returns the built-in agent tool set.

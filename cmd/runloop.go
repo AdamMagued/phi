@@ -83,12 +83,6 @@ func runHeadless(opts runOptions) error {
 	}
 	primary := bs.Config.Model()
 	engineOpts = append(engineOpts, agent.WithHooks(model.HooksFor(primary.Name)))
-	if pool, err := mcp.LoadPool(bs.Proj.MCPConfigFile()); err != nil {
-		fmt.Fprintln(os.Stderr, "warning: mcp:", err)
-	} else if pool != nil {
-		engineOpts = append(engineOpts, agent.WithMCP(pool))
-		defer func() { _ = pool.Close() }()
-	}
 	if bs.Config.Agents.Enabled {
 		parent := bs.Config.Model()
 		jobs, jobErr := agent.NewJobManager(bs.Proj.JobsDir(), parent, func(role job.Role) llm.ModelConfig {
@@ -106,8 +100,8 @@ func runHeadless(opts runOptions) error {
 				return cfg
 			}
 			return parent
-		}, func() *extension.Runner {
-			return extRunner
+		}, func() extension.Host {
+			return extension.OrNop(extRunner)
 		})
 		if jobErr != nil {
 			fmt.Fprintln(os.Stderr, "phi run:", jobErr)
@@ -163,13 +157,22 @@ func loadRunExtensions(bs *runBootstrap) *extension.Runner {
 	r, warns, err := extension.Load(bs.Proj.Global().ExtensionsDir(), bs.Proj.ExtensionsDir())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "warning: extensions:", err)
-		return nil
+		// Built-in plugins do not depend on discovery, so keep them working.
+		r = extension.NewRunner()
 	}
 	if n := len(warns); n > 0 {
 		fmt.Fprintf(os.Stderr, "warning: extensions: %d warning(s) while loading\n", n)
 		for _, w := range warns {
 			fmt.Fprintln(os.Stderr, "  ", w.String())
 		}
+	}
+	// The runner owns plugin resources, so the deferred Close also closes MCP.
+	pool, err := mcp.LoadPool(bs.Proj.MCPConfigFile())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "warning: mcp:", err)
+	}
+	if pool != nil {
+		r.AddPlugin(mcp.Plugin(pool))
 	}
 	return r
 }

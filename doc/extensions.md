@@ -366,7 +366,33 @@ them under management.
 | `ext/go/pxb` | Binary wire protocol |
 | `ext/go/phi` | Go author SDK (`ExtensionAPI.Run`) |
 | `ext/rust` (crate `phi-ext`) | Rust author SDK (`pxb` + `phi` modules; deps: serde/serde_json + tokio `rt`) |
-| `internal/extension` | Discover, spawn, Runner shims |
+| `internal/extension` | Discover, spawn, Runner shims, built-in plugin bus |
+
+## Built-in plugins (host side)
+
+Code compiled into phi can register on the same bus as a PXB extension: `Runner.AddPlugin(extension.Plugin{API: api, ...})`. Tools, commands and events then take the identical dispatch path, so nothing downstream has to know where a registration came from.
+
+A `Plugin` carries only what a subprocess cannot:
+
+| Field | Use |
+|-------|-----|
+| `API` | `ext.NewAPI()` with `RegisterTool` / `RegisterCommand` / `On`. Optional; a zero `Plugin` is ignored |
+| `Assemble` | `PromptAssembler` contributing system-prompt blocks (there is no wire call for this) |
+| `Close` | Released by `Runner.Close`, after the subprocesses are gone |
+
+### Prompt assembly
+
+The system prompt is built from the core blocks (`internal/agent/prompt`) plus whatever `Assemble` returns. Assemblers run in registration order, each appending its sections after the core blocks and after earlier plugins' blocks:
+
+```go
+runner.AddPlugin(extension.Plugin{Assemble: extension.AppendSections("# my block")})
+```
+
+The `AssembleContext` it receives mirrors the engine the prompt is for: `Scope` (main vs sub-agent), `SkillPath`, `AgentsEnabled`, `MaxConcurrent`. Blocks that announce tools must check the scope: a sub-agent runs without extension tools, so advertising them sends the model after a tool it cannot call.
+
+Built-in plugins are also exempt from the subprocess rule that a plugin may only deny: they run in-process and on the fast path. Keep the permission gate in the host regardless.
+
+Current built-in plugins: MCP (`internal/mcp/plugin.go`) — the three meta-tools plus the server-name prompt block.
 
 ## Migration from yaegi
 

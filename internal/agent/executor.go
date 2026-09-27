@@ -29,7 +29,7 @@ type Executor struct {
 	registry  tools.Registry
 	gate      permission.Gate
 	ask       permission.AskFunc
-	ext       *extension.Runner // nil = disabled; methods are nil-safe no-ops
+	ext       extension.Host // always non-nil; extension.Nop when disabled
 	sessionID string
 	cwd       string
 
@@ -38,17 +38,17 @@ type Executor struct {
 	askMu sync.Mutex
 }
 
-// NewExecutor builds an executor. extRunner may be nil.
+// NewExecutor builds an executor. A nil host becomes extension.Nop.
 func NewExecutor(
 	registry tools.Registry,
 	gate permission.Gate,
 	ask permission.AskFunc,
-	extRunner *extension.Runner,
+	extRunner extension.Host,
 ) *Executor {
 	if gate == nil {
 		gate = permission.AllowAll{}
 	}
-	return &Executor{registry: registry, gate: gate, ask: ask, ext: extRunner}
+	return &Executor{registry: registry, gate: gate, ask: ask, ext: extension.OrNop(extRunner)}
 }
 
 // SetMeta attaches session identity used in extension Event payloads.
@@ -265,9 +265,9 @@ func (e *Executor) runOne(
 	postContext = ctxText
 	postStop = stop
 	postReason = reason
-	// PostTool passes content through untouched when the runner is nil or no
-	// handler rewrites it; only a changed result is applied so tool Error/Output
-	// never duplicate (and nil behaves like an empty runner).
+	// PostTool passes content through untouched when no handler rewrites it;
+	// only a changed result is applied so tool Error/Output never duplicate
+	// (the disabled host echoes content, same as an empty extension set).
 	if newContent != "" && newContent != content {
 		content = newContent
 		output = newContent

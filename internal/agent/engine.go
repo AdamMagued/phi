@@ -15,7 +15,6 @@ import (
 	"github.com/pulseaiclub/phi/internal/llm"
 	llmclient "github.com/pulseaiclub/phi/internal/llm/client"
 	"github.com/pulseaiclub/phi/internal/llm/skills"
-	"github.com/pulseaiclub/phi/internal/mcp"
 	"github.com/pulseaiclub/phi/internal/permission"
 	"github.com/pulseaiclub/phi/internal/session"
 	"github.com/pulseaiclub/phi/internal/session/compaction"
@@ -48,10 +47,9 @@ type Engine struct {
 	ask          permission.AskFunc
 	continueAsk  ContinueFunc
 	jobs         *job.Manager
-	extensions   *extension.Runner // nil = disabled; all methods are nil-safe no-ops
-	baseTools    []tools.Tool      // nil = DefaultTools; preserved across rebind
-	omitExtTools bool              // sub-agents: emit events but skip RegisterTool merge
-	mcp          *mcp.Pool
+	extensions   extension.Host // always non-nil; extension.Nop when disabled
+	baseTools    []tools.Tool   // nil = DefaultTools; preserved across rebind
+	omitExtTools bool           // sub-agents: emit events but skip RegisterTool merge
 
 	session *Session
 }
@@ -74,9 +72,8 @@ func NewEngine(model llm.ModelConfig, sess *Session, opts ...EngineOption) (*Eng
 		ask:          cfg.ask,
 		continueAsk:  cfg.continueAsk,
 		jobs:         cfg.jobs,
-		extensions:   cfg.extensions,
+		extensions:   extension.OrNop(cfg.extensions),
 		omitExtTools: cfg.omitExtTools,
-		mcp:          cfg.mcp,
 	}
 	if cfg.maxRounds > 0 {
 		engine.maxRounds = cfg.maxRounds
@@ -103,21 +100,12 @@ func (engine *Engine) buildToolList(base []tools.Tool) []tools.Tool {
 	return out
 }
 
-// buildCoreTools returns builtin (+ MCP + agent_*) tools without extension RegisterTool.
+// buildCoreTools returns builtin (+ agent_*) tools without extension RegisterTool.
 func (engine *Engine) buildCoreTools(base []tools.Tool) []tools.Tool {
 	if base == nil {
 		base = tools.DefaultTools()
 	}
 	out := base
-	if engine.mcp != nil {
-		mcpTools := tools.MCPTools(engine.mcp)
-		if len(mcpTools) > 0 {
-			merged := make([]tools.Tool, 0, len(out)+len(mcpTools))
-			merged = append(merged, out...)
-			merged = append(merged, mcpTools...)
-			out = merged
-		}
-	}
 	if engine.jobs == nil {
 		return out
 	}
@@ -168,16 +156,31 @@ func (engine *Engine) rebindTools() {
 	engine.bindExecutor(tools.NewRegistry(toolList))
 }
 
+// systemPrompt assembles the system prompt: the built-in blocks plus whatever
+// the extension host contributes. It runs on every rebind, so an assembler that
+// fails must degrade to the core prompt rather than fail the engine.
 func (engine *Engine) systemPrompt() string {
-	var mcpServers []string
-	if engine.mcp != nil {
-		mcpServers = engine.mcp.ServerNames()
-	}
 	maxConcurrent := 0
 	if engine.jobs != nil {
 		maxConcurrent = engine.jobs.MaxConcurrent()
 	}
-	return prompt.Build(engine.modelCfg.SkillPath, engine.jobs != nil, maxConcurrent, mcpServers)
+	// omitExtTools is set for sub-agents, which register no extension tools; the
+	// scope tells assemblers not to advertise tools the model cannot call.
+	scope := extension.ScopeMain
+	if engine.omitExtTools {
+		scope = extension.ScopeSubagent
+	}
+	ac := extension.AssembleContext{
+		Scope:         scope,
+		SkillPath:     engine.modelCfg.SkillPath,
+		AgentsEnabled: engine.jobs != nil,
+		MaxConcurrent: maxConcurrent,
+	}
+	core := func() []string {
+		return prompt.Sections(ac.SkillPath, ac.AgentsEnabled, ac.MaxConcurrent)
+	}
+	sections := engine.extensions.AssemblePrompt(ac, core)
+	return strings.Join(sections, "\n\n")
 }
 
 func (engine *Engine) bindExecutor(registry tools.Registry) {
@@ -216,13 +219,13 @@ func (engine *Engine) SetContinueAsk(fn ContinueFunc) {
 	engine.continueAsk = fn
 }
 
-// SetExtensions replaces the extension runner. Pass nil to disable extensions.
-// Rebinds tools so RegisterTool from the new runner takes effect.
-func (engine *Engine) SetExtensions(r *extension.Runner) {
+// SetExtensions replaces the extension host. Pass nil to disable extensions.
+// Rebinds tools so RegisterTool from the new host takes effect.
+func (engine *Engine) SetExtensions(r extension.Host) {
 	if engine == nil {
 		return
 	}
-	engine.extensions = r
+	engine.extensions = extension.OrNop(r)
 	engine.rebindTools()
 }
 
@@ -280,8 +283,8 @@ type LoopOpts struct {
 //     context, and retry the stream. A second overflow fails closed.
 func (engine *Engine) Loop(ctx context.Context, prompt string, opts LoopOpts) iter.Seq2[session.Event, error] {
 	return func(yield func(session.Event, error) bool) {
-		// The extension runner is nil-safe (nil = disabled), so calls are
-		// unconditional no-ops when no extensions are loaded.
+		// The host is never nil (extension.Nop when nothing is loaded), so
+		// these calls are unconditional no-ops.
 		content, handled := engine.extensions.EmitUserInput(prompt)
 		if handled {
 			return

@@ -101,7 +101,7 @@ func (h *ExtCommands) run(name, args string) {
 	defer h.running.Store(false)
 
 	gen := h.gen.Load()
-	if h.Ctrl == nil || h.Ctrl.Extensions() == nil {
+	if h.Ctrl == nil {
 		h.Bus.Publish(controller.ExtCommandResultMsg{Gen: gen, Err: "extensions are not loaded"})
 		return
 	}

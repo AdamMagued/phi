@@ -52,7 +52,6 @@ type EngineController struct {
 	allowAll      atomic.Bool
 	agentsEnabled atomic.Bool
 	extRunner     atomic.Pointer[extension.Runner]
-	mcpPool       *mcp.Pool
 
 	lastJobProgress sync.Map // job slot key → last published signature
 }
@@ -112,12 +111,6 @@ func NewController(bus *Bus, proj *project.Project, cwd string) (*EngineControll
 		return nil, err
 	}
 	c.jobs = jobs
-
-	if pool, err := mcp.LoadPool(proj.MCPConfigFile()); err != nil {
-		debuglog.Logf("mcp: load: %v", err)
-	} else {
-		c.mcpPool = pool
-	}
 
 	eng, err := c.openEngine(c.modelCfg, extRunner, "")
 	if err != nil {
@@ -225,8 +218,9 @@ func (c *EngineController) engineJobs() *job.Manager {
 	return c.jobs
 }
 
-func (c *EngineController) Extensions() *extension.Runner {
-	return c.extRunner.Load()
+// Extensions returns the active host, or extension.Nop when nothing is loaded.
+func (c *EngineController) Extensions() extension.Host {
+	return extension.OrNop(c.extRunner.Load())
 }
 
 func (c *EngineController) ReloadExtensions() (loaded int, warns []extension.Warning, err error) {
@@ -264,8 +258,9 @@ func (c *EngineController) ListExtensions() ([]extension.Discovered, []extension
 	return extension.Discover(c.proj.Global().ExtensionsDir(), c.proj.ExtensionsDir())
 }
 
-// loadExtensions discovers ~/.phi/extensions and <cwd>/.phi/extensions.
-// Load errors are non-fatal (fail-open: no extensions).
+// loadExtensions discovers ~/.phi/extensions and <cwd>/.phi/extensions, then
+// registers the built-in plugins on the same bus.
+// Load errors are non-fatal: the session keeps running with plugins only.
 func loadExtensions(proj *project.Project) *extension.Runner {
 	if proj == nil {
 		return nil
@@ -273,10 +268,27 @@ func loadExtensions(proj *project.Project) *extension.Runner {
 	r, warns, err := extension.Load(proj.Global().ExtensionsDir(), proj.ExtensionsDir())
 	if err != nil {
 		debuglog.Logf("extension: load failed: %v", err)
+		// Discovery failed, but built-in plugins do not depend on it. Losing the
+		// MCP tools along with a broken extensions dir would be a confusing
+		// double failure.
+		r = extension.NewRunner()
+	} else {
+		logExtensionWarnings(warns)
+	}
+	// The runner owns plugin resources, so quitting closes the MCP pool too.
+	r.AddPlugin(mcp.Plugin(loadMCPPool(proj)))
+	return r
+}
+
+// loadMCPPool loads the MCP server config. MCP is optional: a missing or broken
+// config logs and yields nil, which leaves the agent without mcp_* tools.
+func loadMCPPool(proj *project.Project) *mcp.Pool {
+	pool, err := mcp.LoadPool(proj.MCPConfigFile())
+	if err != nil {
+		debuglog.Logf("mcp: load: %v", err)
 		return nil
 	}
-	logExtensionWarnings(warns)
-	return r
+	return pool
 }
 
 func logExtensionWarnings(warns []extension.Warning) {
@@ -572,7 +584,7 @@ func (c *EngineController) resolveModel() (llm.ModelConfig, error) {
 
 func (c *EngineController) openEngine(
 	cfg llm.ModelConfig,
-	extRunner *extension.Runner,
+	extRunner extension.Host,
 	resumeID string,
 ) (*agent.Engine, error) {
 	opts := []agent.SessionOption{
@@ -593,7 +605,6 @@ func (c *EngineController) openEngine(
 		agent.WithContinueAsk(c.askContinue),
 		agent.WithJobs(c.engineJobs()),
 		agent.WithExtensions(extRunner),
-		agent.WithMCP(c.mcpPool),
 		agent.WithHooks(model.HooksFor(cfg.Name)),
 	)
 }
@@ -638,10 +649,6 @@ func (c *EngineController) Close() {
 	if c.jobs != nil {
 		_ = c.jobs.Close(context.Background())
 	}
-	if c.mcpPool != nil {
-		_ = c.mcpPool.Close()
-		c.mcpPool = nil
-	}
 	if prev := c.extRunner.Swap(nil); prev != nil {
 		prev.Close()
 	}
@@ -649,9 +656,6 @@ func (c *EngineController) Close() {
 
 func (c *EngineController) sessionBeforeSwitch(reason, fromID, targetID string) ext.SessionEffects {
 	r := c.Extensions()
-	if r == nil {
-		return ext.SessionEffects{}
-	}
 	r.SetMeta(fromID, c.cwd)
 	return r.EmitSessionBeforeSwitch(ext.SessionBeforeSwitchEvent{
 		Reason:          reason,
@@ -661,18 +665,12 @@ func (c *EngineController) sessionBeforeSwitch(reason, fromID, targetID string) 
 
 func (c *EngineController) sessionShutdown(reason, sessionID string) {
 	r := c.Extensions()
-	if r == nil {
-		return
-	}
 	r.SetMeta(sessionID, c.cwd)
 	c.publishSessionEffects(r.EmitSessionShutdown(ext.SessionShutdownEvent{Reason: reason}))
 }
 
 func (c *EngineController) emitSessionStart(reason, sessionID, previousID string) {
 	r := c.Extensions()
-	if r == nil {
-		return
-	}
 	r.SetMeta(sessionID, c.cwd)
 	c.publishSessionEffects(r.EmitSessionStart(ext.SessionStartEvent{
 		Reason:            reason,

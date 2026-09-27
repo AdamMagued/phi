@@ -17,7 +17,7 @@ func NewJobManager(
 	root string,
 	model llm.ModelConfig,
 	modelFn func(role job.Role) llm.ModelConfig,
-	extensionsFn func() *extension.Runner,
+	extensionsFn func() extension.Host,
 ) (*job.Manager, error) {
 	if root == "" {
 		return nil, errors.New("agent: jobs root is required")

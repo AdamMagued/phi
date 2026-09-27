@@ -17,12 +17,9 @@ var (
 	systemPromptTmpl string
 	//go:embed skills-prompt.tmpl
 	skillsPromptTmpl string
-	//go:embed mcp-prompt.tmpl
-	mcpPromptTmpl string
 
 	systemPrompt = template.Must(template.New("system").Parse(systemPromptTmpl))
 	skillsPrompt = template.Must(template.New("skills").Parse(skillsPromptTmpl))
-	mcpPrompt    = template.Must(template.New("mcp").Parse(mcpPromptTmpl))
 )
 
 type systemData struct {
@@ -36,14 +33,12 @@ type skillsData struct {
 	Catalog string
 }
 
-type mcpData struct {
-	Servers []string
-}
-
-// Build assembles the system prompt.
+// Sections returns the built-in system-prompt blocks, in order: the base prompt,
+// the project context files, then the skills catalog. Blocks that do not apply
+// are dropped, so the result is never empty. Callers join the blocks with a
+// blank line and may insert or reorder plugin-contributed ones in between.
 // agentsEnabled must match whether agent_* tools are registered.
-// mcpServers are configured server names only (no tool schemas).
-func Build(skillPath string, agentsEnabled bool, maxConcurrent int, mcpServers []string) string {
+func Sections(skillPath string, agentsEnabled bool, maxConcurrent int) []string {
 	var buf strings.Builder
 	data := systemData{
 		Cwd:           currentDir(),
@@ -61,10 +56,7 @@ func Build(skillPath string, agentsEnabled bool, maxConcurrent int, mcpServers [
 	if skillBlock := skillsBlock(skillPath); skillBlock != "" {
 		parts = append(parts, skillBlock)
 	}
-	if mcpBlock := mcpBlock(mcpServers); mcpBlock != "" {
-		parts = append(parts, mcpBlock)
-	}
-	return strings.Join(parts, "\n\n")
+	return parts
 }
 
 func execTmpl(t *template.Template, data any) string {
@@ -88,20 +80,6 @@ func skillsBlock(skillDir string) string {
 		return ""
 	}
 	return execTmpl(skillsPrompt, skillsData{Catalog: catalog})
-}
-
-func mcpBlock(serverNames []string) string {
-	servers := make([]string, 0, len(serverNames))
-	for _, name := range serverNames {
-		name = strings.TrimSpace(name)
-		if name != "" {
-			servers = append(servers, name)
-		}
-	}
-	if len(servers) == 0 {
-		return ""
-	}
-	return execTmpl(mcpPrompt, mcpData{Servers: servers})
 }
 
 func currentDir() string {

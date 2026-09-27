@@ -46,7 +46,9 @@ func TestSwapExtensionRunner_ClosesPrevious(t *testing.T) {
 	first.Close()
 
 	ctrl.Close()
-	assert.Nil(t, ctrl.Extensions())
+	// Nothing loaded: the concrete runner is gone, and callers see the Nop host.
+	assert.Nil(t, ctrl.extRunner.Load())
+	assert.Equal(t, extension.Nop, ctrl.Extensions())
 	// Idempotent.
 	ctrl.Close()
 }

@@ -152,6 +152,6 @@ Logs: `~/.phi/logs/mcp/<name>.log` (override with `PHI_MCP_LOG_DIR`).
 | Path | Role |
 | --- | --- |
 | `internal/mcp/` | config, Client, session, stdio/http transports, Pool |
-| `internal/tools/mcptool/` | `mcp_list` / `mcp_inspect` / `mcp_call` |
-| `internal/agent/engine.go` | `WithMCP` wires meta-tools |
+| `internal/mcp/plugin.go` | built-in plugin: `mcp_list` / `mcp_inspect` / `mcp_call` + prompt block |
+| `internal/extension/plugin.go` | built-in plugin seam on the extension bus |
 | `cmd/mcp.go` | `phi mcp` subcommand |

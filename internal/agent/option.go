@@ -4,7 +4,6 @@ import (
 	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
 	llmclient "github.com/pulseaiclub/phi/internal/llm/client"
-	"github.com/pulseaiclub/phi/internal/mcp"
 	"github.com/pulseaiclub/phi/internal/permission"
 	"github.com/pulseaiclub/phi/internal/tools"
 )
@@ -19,9 +18,8 @@ type engineConfig struct {
 	tools        []tools.Tool
 	maxRounds    int
 	jobs         *job.Manager
-	extensions   *extension.Runner
+	extensions   extension.Host
 	omitExtTools bool
-	mcp          *mcp.Pool
 	hooks        llmclient.Hooks
 }
 
@@ -55,19 +53,14 @@ func WithJobs(jobs *job.Manager) EngineOption {
 	return func(c *engineConfig) { c.jobs = jobs }
 }
 
-// WithExtensions attaches an extension runner (nil = no extensions).
-func WithExtensions(runner *extension.Runner) EngineOption {
-	return func(c *engineConfig) { c.extensions = runner }
+// WithExtensions attaches an extension host (nil = no extensions).
+func WithExtensions(runner extension.Host) EngineOption {
+	return func(c *engineConfig) { c.extensions = extension.OrNop(runner) }
 }
 
 // WithOmitExtensionTools keeps Runner events but skips RegisterTool merge (sub-agents).
 func WithOmitExtensionTools(omit bool) EngineOption {
 	return func(c *engineConfig) { c.omitExtTools = omit }
-}
-
-// WithMCP registers mcp_list/inspect/call meta-tools against the pool.
-func WithMCP(pool *mcp.Pool) EngineOption {
-	return func(c *engineConfig) { c.mcp = pool }
 }
 
 // WithHooks sets provider request interceptors (nil fields = no customization).

@@ -1,14 +1,20 @@
 package prompt
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+// build joins the blocks the way the engine does.
+func build(skillPath string, agentsEnabled bool, maxConcurrent int) string {
+	return strings.Join(Sections(skillPath, agentsEnabled, maxConcurrent), "\n\n")
+}
+
 func TestBuildAgentsEnabledToggle(t *testing.T) {
-	with := Build("", true, 4, nil)
-	without := Build("", false, 0, nil)
+	with := build("", true, 4)
+	without := build("", false, 0)
 
 	require.Contains(t, with, "agent_spawn")
 	require.Contains(t, with, "Sub-agents:")
@@ -19,7 +25,7 @@ func TestBuildAgentsEnabledToggle(t *testing.T) {
 }
 
 func TestBuildEditHashCopyIsUnambiguous(t *testing.T) {
-	got := Build("", false, 0, nil)
+	got := build("", false, 0)
 	require.NotContains(t, got, "copy `@file path#TAG` into")
 	require.Contains(t, got, "4 hex chars after `#`")
 	require.NotContains(t, got, "Known path or exact symbol")
@@ -29,18 +35,11 @@ func TestBuildEditHashCopyIsUnambiguous(t *testing.T) {
 	require.Contains(t, got, "Prefer cwd-relative paths")
 }
 
-func TestBuildMCPCatalog(t *testing.T) {
-	none := Build("", false, 0, nil)
-	require.NotContains(t, none, "# MCP")
-	require.NotContains(t, none, "External docs/URLs")
-	got := Build("", false, 0, []string{"browsermcp", "github"})
-	require.Contains(t, got, "# MCP")
-	require.Contains(t, got, "- browsermcp")
-	require.Contains(t, got, "- github")
-	require.Contains(t, got, "mcp_list")
-	require.Contains(t, got, "mcp_inspect")
-	require.Contains(t, got, "mcp_call")
-	require.Contains(t, got, "docs/URLs")
-	require.NotContains(t, got, `"properties"`)
-	require.NotContains(t, got, "inputSchema")
+// The base prompt is the first block, so callers can prepend nothing and still
+// get a coherent prompt when no catalog applies.
+func TestSectionsBasePromptComesFirst(t *testing.T) {
+	parts := Sections("", false, 0)
+
+	require.NotEmpty(t, parts)
+	require.Contains(t, parts[0], "`write` creates or overwrites")
 }

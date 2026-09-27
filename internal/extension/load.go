@@ -15,14 +15,15 @@ func Load(userDir, projectDir string) (*Runner, []Warning, error) {
 	if err != nil {
 		return nil, warns, err
 	}
+	r := NewRunner()
 	if len(found) == 0 {
-		return &Runner{warns: warns}, warns, nil
+		r.warns = warns
+		return r, warns, nil
 	}
 
 	logDir := extensionLogDir(userDir)
 	cwd, _ := os.Getwd()
 
-	r := &Runner{}
 	for _, d := range found {
 		proc, err := StartProc(context.Background(), d.Manifest, d.Path, logDir, cwd, "")
 		if err != nil {
@@ -32,7 +33,7 @@ func Load(userDir, projectDir string) (*Runner, []Warning, error) {
 		}
 		api := ext.NewAPI()
 		proc.BuildAPI(api)
-		r.apis = append(r.apis, api)
+		r.bus.addAPI(api)
 		r.procs = append(r.procs, proc)
 		r.loaded = append(r.loaded, d)
 	}
