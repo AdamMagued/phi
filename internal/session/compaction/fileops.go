@@ -108,10 +108,18 @@ func computeFileLists(fileOps *FileOperation) ([]string, []string) {
 		modifiedSet[p] = struct{}{}
 	}
 
+	// A file is often read more than once, and a previous compaction hands its
+	// reads back on every round, so collapse duplicates before listing them.
+	readSet := make(map[string]struct{}, len(fileOps.read))
 	for _, p := range fileOps.read {
-		if _, exists := modifiedSet[p]; !exists {
-			readFiles = append(readFiles, p)
+		if _, modified := modifiedSet[p]; modified {
+			continue
 		}
+		if _, dup := readSet[p]; dup {
+			continue
+		}
+		readSet[p] = struct{}{}
+		readFiles = append(readFiles, p)
 	}
 
 	for p := range modifiedSet {

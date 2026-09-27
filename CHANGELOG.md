@@ -10,6 +10,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.27.6] - 2026-09-27
+
+### Added
+
 - `!` shell commands complete from project history: typing `!git s` ranks recent
   commands with Jev and lists the completions above the composer. Tab (or Enter on
   a row that differs from what was typed) fills the highlighted command; a single
@@ -37,6 +51,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+- The compaction threshold is checked before every request, not only when a turn
+  ends. A turn that keeps calling tools could grow past the configured
+  `context_window` while it ran: the next check happened after the model stopped
+  calling tools, and overflow recovery needed the provider to reject the request
+  first. The pre-request check sizes the context from the last reported usage
+  plus an estimate of everything appended since, so a long turn is summarized
+  before the next request goes out rather than after the window is already
+  exceeded.
+
+- Compaction summaries say that they are summaries. They re-entered the context
+  as plain user messages, so retired instructions inside one — a constraint from
+  an earlier turn, the summarizer's own next steps — read to the model as a fresh
+  request. They now arrive with a "the conversation history before this point was
+  compacted" lead-in and a `<summary>` wrapper.
+
+- Compaction summaries list the files touched by the turn the cut lands in. A
+  mid-turn cut summarizes the turn prefix, but its file operations were never
+  collected, so the handoff summary reported edited files as read-only (or
+  omitted them) and the resumed session could re-read or overwrite that work.
+  Read lists are deduplicated too, and the file block follows the summary after
+  a single blank line instead of two.
 
 - `@` file search on Windows under MSYS2/Git Bash no longer inserts absolute
   paths: `fd` prints forward slashes there while the cwd keeps backslashes, so
@@ -710,7 +746,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.27.5...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.27.6...HEAD
+[0.27.6]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.6
 [0.27.5]: https://github.com/pulseaiclub/phi/compare/v0.27.4...v0.27.5
 [0.27.4]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.4
 [0.27.3]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.3

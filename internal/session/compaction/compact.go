@@ -105,7 +105,15 @@ func PrepareCompact(
 		previousPreserveData = prevCompaction.Compaction.PreserveData
 	}
 
-	fileOps := extractFileOperations(messagesToSummarize, pathEntries, preCompactionIndex)
+	// File operations must cover every bucket the cut drops, which is the history
+	// plus the turn prefix on a mid-turn cut. Leaving the prefix out hides the
+	// edits made in the turn the cut lands in, so the summary lists files that
+	// were edited under "read" and drops the rest entirely.
+	fileOps := extractFileOperations(
+		slices.Concat(messagesToSummarize, turnPrefixMessages),
+		pathEntries,
+		preCompactionIndex,
+	)
 
 	lastUsage := getLastAssistantUsage(pathEntries)
 	// ContextTokens, not TotalTokens: a provider that omits the total still has
@@ -148,7 +156,7 @@ func Compact(
 	readFiles, modifiedFiles := computeFileLists(&preparation.FileOps)
 	fileOperations := formatFileOperations(readFiles, modifiedFiles)
 	if fileOperations != "" {
-		summary += "\n\n" + fileOperations
+		summary += fileOperations // formatFileOperations returns its own separator
 	}
 
 	return session.Compaction{

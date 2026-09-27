@@ -29,6 +29,20 @@ func msgEntry(id string, role llm.Role, tokens, usage int) session.MessageEntry 
 	}
 }
 
+// editEntry builds an assistant entry whose tool call edits path, which is what
+// file-operation extraction collects from.
+func editEntry(id, path string) session.MessageEntry {
+	return session.SessionMessageEntry{
+		SessionBaseEntry: session.SessionBaseEntry{ID: id},
+		Message: llm.Message{
+			Role: llm.RoleAssistant,
+			ToolCalls: []llm.ToolCall{{
+				Function: llm.Function{Name: "edit", Arguments: `{"path":"` + path + `"}`},
+			}},
+		},
+	}
+}
+
 func TestPrepareCompact_AlreadyCompacted_ReturnsEmptyPreparation(t *testing.T) {
 	entries := []session.MessageEntry{
 		msgEntry("e1", llm.RoleUser, 10, 0),
@@ -184,4 +198,51 @@ func TestCompact_TruncatedSummary_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "generation hit the token cap")
 	assert.Empty(t, comp.Summary)
 	assert.Equal(t, []int{13107}, c.maxTokens, "0.8 * reserveTokens")
+}
+
+// A mid-turn cut drops the turn prefix as well as the history, and both buckets
+// are summarized away. Every file touched in either bucket has to reach the
+// file-operation lists: missing the prefix listed the edited files of the cut
+// turn as merely read, and dropped their siblings entirely.
+func TestPrepareCompact_MidTurnCut_CollectsTurnPrefixFileOps(t *testing.T) {
+	entries := []session.MessageEntry{
+		msgEntry("e1", llm.RoleUser, 10, 0),
+		editEntry("e2", "history.go"),
+		msgEntry("e3", llm.RoleUser, 10, 0),
+		editEntry("e4", "prefix.go"),
+		msgEntry("e5", llm.RoleAssistant, 30, 40),
+	}
+	settings := Settings{keepRecentTokens: 20}
+
+	prep, err := PrepareCompact(entries, settings)
+
+	require.NoError(t, err)
+	require.True(t, prep.IsMidTurnCut)
+	require.Equal(t, "e5", prep.FirstKeptEntryId)
+	require.Len(t, prep.MessagesToSummarize, 2)
+	require.Len(t, prep.TurnPrefixMessages, 2)
+	assert.Equal(t, []string{"history.go", "prefix.go"}, prep.FileOps.edited)
+}
+
+// The file block reaches the persisted summary separated by exactly one blank
+// line, and Details carries the same lists for the transcript.
+func TestCompact_AppendsFileOpsBlock(t *testing.T) {
+	entries := []session.MessageEntry{
+		msgEntry("e1", llm.RoleUser, 10, 0),
+		editEntry("e2", "history.go"),
+		msgEntry("e3", llm.RoleUser, 10, 0),
+		editEntry("e4", "prefix.go"),
+		msgEntry("e5", llm.RoleAssistant, 30, 40),
+	}
+	settings := Settings{reverseTokens: 16384, keepRecentTokens: 20}
+	prep, err := PrepareCompact(entries, settings)
+	require.NoError(t, err)
+
+	comp, err := Compact(t.Context(), *prep, &captureCompactor{})
+
+	require.NoError(t, err)
+	assert.Contains(t, comp.Summary, "SUMMARY\n\n<modified-files>\nhistory.go\nprefix.go\n</modified-files>")
+	assert.NotContains(t, comp.Summary, "\n\n\n\n")
+	assert.Equal(t, []string{"history.go", "prefix.go"}, comp.Details.ModifiedFiles)
+	assert.Empty(t, comp.Details.ReadFiles)
 }

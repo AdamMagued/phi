@@ -234,6 +234,18 @@ func TestComputeFileLists(t *testing.T) {
 		assert.Equal(t, []string{"a.go", "b.go", "c.go"}, modifiedFiles)
 	})
 
+	t.Run("duplicate reads collapse", func(t *testing.T) {
+		f := &FileOperation{
+			read:    []string{"b.go", "a.go", "b.go"},
+			written: nil,
+		}
+
+		readFiles, modifiedFiles := computeFileLists(f)
+
+		assert.Equal(t, []string{"a.go", "b.go"}, readFiles)
+		assert.Empty(t, modifiedFiles)
+	})
+
 	t.Run("empty FileOperation yields empty slices", func(t *testing.T) {
 		f := &FileOperation{}
 
