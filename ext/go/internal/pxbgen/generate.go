@@ -5,7 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"go/format"
-	"html/template"
+	"text/template"
 )
 
 // fieldTemplateData holds pre-rendered strings for a single field, so the
