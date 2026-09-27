@@ -14,7 +14,7 @@ CGO      ?= 0
 # Pin digest so CI / local make use the same markdownlint image.
 MARKDOWN_LINT_IMAGE ?= avtodev/markdown-lint:v1@sha256:6aeedc2f49138ce7a1cd0adffc1b1c0321b841dc2102408967d9301c031949ee
 
-.PHONY: all build install run clean test fmt fmt-check lint lint-markdown deadcode check help
+.PHONY: all build install run clean test fmt fmt-check lint lint-markdown deadcode generate generate-check check help
 
 all: build
 
@@ -36,6 +36,14 @@ clean:
 test:
 	$(GO) test ./...
 	$(GO) test -C ext/go ./...
+
+# Regenerate ext/go/pxb/msg_gen.go from ext/go/pxb/schema.go.
+generate:
+	cd ext/go && $(GO) generate ./...
+
+# Fail if the generated wire code is stale (used by CI).
+generate-check:
+	cd ext/go/pxb && $(GO) run ../internal/pxbgen -check
 
 # Rust extension SDK (ext/rust): build + test.
 test-rust:
@@ -62,7 +70,7 @@ lint-markdown:
 deadcode:
 	./scripts/deadcode-check.sh
 
-check: fmt-check lint deadcode
+check: fmt-check lint deadcode generate-check
 
 # Rust extension SDK checks: format + lint (CI mirrors this).
 check-rust:
@@ -80,6 +88,8 @@ help:
 	@echo "  make lint     - run golangci-lint"
 	@echo "  make lint-markdown - lint Markdown (Docker; needs daemon)"
 	@echo "  make deadcode - unreachable func check (deadcode -test vs baseline)"
-	@echo "  make check    - fmt-check + lint + deadcode (CI)"
+	@echo "  make generate - regenerate ext/go/pxb/msg_gen.go from schema.go"
+	@echo "  make generate-check - fail if the generated wire code is stale (CI)"
+	@echo "  make check    - fmt-check + lint + deadcode + generate-check (CI)"
 	@echo "  make test-rust - test Rust extension SDK (ext/rust)"
 	@echo "  make check-rust - format + lint Rust extension SDK (CI)"

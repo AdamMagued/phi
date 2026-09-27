@@ -12,6 +12,7 @@ Lean, high-performance Go terminal coding-agent harness. Layout: [doc/project-la
 
 - **Tool loop is ExtensionPre → Gate/Ask → Run → ExtensionPost.** Don't bypass the permission gate when changing the executor. Don't put MCP server tool schemas on the model — only `mcp_list` / `mcp_inspect` / `mcp_call`.
 - **Extensions are PXB subprocesses** (`phi.yaml` + native binary under `~/.phi/extensions` / `.phi/extensions`). Wire: `ext/go/pxb`. Author SDK: Go `ext/go/phi` (module `github.com/pulseaiclub/phi/ext/go`). Host: `internal/extension`. See [doc/extensions.md](doc/extensions.md).
+- **PXB message payloads are generated.** Fields are declared once in `ext/go/pxb/schema.go` (`pxb:"<tag>[,opt]"`); `make generate` writes `msg_gen.go`. Never hand-edit `msg_gen.go` or add encode/decode switches — `make check` runs `generate-check` and fails on drift. The Rust side (`ext/rust/src/pxb/msg.rs`) mirrors the same tags by hand.
 - **Keep hashline `edit`.** Don't replace it with whole-file rewrite. Stale `@file path#TAG` / `LINE#HASH` must fail closed.
 - **Sub-agent transcripts stay under `~/.phi/jobs/<id>/`.** Parent context gets the wait/task summary only. Child engines have no `agent_*` tools (no nesting). Default child role is explore (no write/edit; bash allowed except hard denies).
 - **UI split:** `internal/components` render; `internal/tui` wires the shell. Non-shell pieces live under `internal/tui/controller` (Engine/Bus/Msg), `internal/tui/transcript` (Mapper); version in `internal/version`. Keep widgets dumb.
@@ -42,7 +43,8 @@ make fmt                       # apply formatters
 make fmt-check                 # CI formatting gate
 make lint                      # golangci-lint
 make deadcode                  # unreachable funcs vs baseline
-make check                     # fmt-check + lint + deadcode (CI)
+make generate                  # regenerate ext/go/pxb/msg_gen.go
+make check                     # fmt-check + lint + deadcode + generate-check (CI)
 make build                     # ./phi
 ```
 

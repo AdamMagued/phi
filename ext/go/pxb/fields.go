@@ -12,6 +12,14 @@ const (
 	WireBytes uint8 = 2 // u32 length + bytes
 )
 
+// Encoded field sizes: a 3-byte field header (tag u16 + kind u8) plus the value,
+// or plus a u32 length for blobs. Generated encoders sum these to reserve the
+// exact payload, so they must stay in step with the Put* methods below.
+const (
+	u64FieldSize   = 3 + 8
+	blobHeaderSize = 3 + 4
+)
+
 var (
 	ErrBadWire = errors.New("pxb: bad wire kind")
 	ErrBadTag  = errors.New("pxb: bad field tag")
@@ -34,6 +42,10 @@ func (fw *FieldWriter) Reset() { fw.b = fw.b[:0] }
 
 // Bytes returns the encoded payload.
 func (fw *FieldWriter) Bytes() []byte { return fw.b }
+
+// sizedWriter starts a writer with n bytes reserved. An encoder that knows its
+// exact payload size allocates once and never grows.
+func sizedWriter(n int) FieldWriter { return FieldWriter{b: make([]byte, 0, n)} }
 
 func (fw *FieldWriter) putHdr(tag uint16, kind uint8) {
 	var tmp [3]byte
@@ -87,14 +99,42 @@ func (fw *FieldWriter) PutString(tag uint16, s string) {
 	fw.PutBytes(tag, []byte(s))
 }
 
-// PutU16s writes a packed list as WireBytes: u16 count + u16 values.
+// PutU16s writes a packed list as WireBytes: u16 count + u16 values. It packs in
+// place rather than through a ByteWriter so encoding stays single-allocation.
 func (fw *FieldWriter) PutU16s(tag uint16, vs []uint16) {
 	if len(vs) == 0 {
 		return
 	}
-	var inner ByteWriter
-	inner.U16s(vs)
-	fw.PutBytes(tag, inner.Bytes())
+	fw.putHdr(tag, WireBytes)
+	fw.b = binary.LittleEndian.AppendUint32(fw.b, uint32(2+len(vs)*2)) //nolint:gosec // G115: bounded by MaxPayload
+	fw.b = binary.LittleEndian.AppendUint16(fw.b, uint16(len(vs)))     //nolint:gosec // G115: bounded by MaxPayload
+	for _, v := range vs {
+		fw.b = binary.LittleEndian.AppendUint16(fw.b, v)
+	}
+}
+
+// strSize is the encoded size of a string field, or 0 when it is omitted.
+func strSize(s string) int {
+	if s == "" {
+		return 0
+	}
+	return blobHeaderSize + len(s)
+}
+
+// blobSize is strSize for opaque bytes.
+func blobSize(p []byte) int {
+	if len(p) == 0 {
+		return 0
+	}
+	return blobHeaderSize + len(p)
+}
+
+// u16sSize is the encoded size of a packed u16 list (count + values).
+func u16sSize(vs []uint16) int {
+	if len(vs) == 0 {
+		return 0
+	}
+	return blobHeaderSize + 2 + len(vs)*2
 }
 
 // FieldReader walks a tagged-field payload.
@@ -198,4 +238,36 @@ func Walk(b []byte, fn func(tag uint16, kind uint8, fr *FieldReader) error) erro
 		}
 	}
 	return nil
+}
+
+// takeU64 reads a WireU64 value, rejecting a field that claims another kind.
+func takeU64(kind uint8, fr *FieldReader) (uint64, error) {
+	if kind != WireU64 {
+		_ = fr.Skip(kind)
+		return 0, ErrBadWire
+	}
+	return fr.U64()
+}
+
+// takeBytes reads a WireBytes value, rejecting a field that claims another kind.
+func takeBytes(kind uint8, fr *FieldReader) ([]byte, error) {
+	if kind != WireBytes {
+		_ = fr.Skip(kind)
+		return nil, ErrBadWire
+	}
+	return fr.Bytes()
+}
+
+// takeString reads a WireBytes value as a string.
+func takeString(kind uint8, fr *FieldReader) (string, error) {
+	p, err := takeBytes(kind, fr)
+	if err != nil {
+		return "", err
+	}
+	return string(p), nil
+}
+
+// decodeU16s reads a packed u16 list written by PutU16s.
+func decodeU16s(p []byte) ([]uint16, error) {
+	return NewByteReader(p).U16s()
 }

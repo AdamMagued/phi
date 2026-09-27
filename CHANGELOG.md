@@ -43,6 +43,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- `ext/go/pxb` message payloads are generated from `ext/go/pxb/schema.go`
+  (`make generate`, gate: `make generate-check`). Field tags now live in one
+  place instead of four, and the wire bytes are unchanged. Encoders reserve the
+  exact payload size, so a typical message allocates once instead of growing its
+  buffer (InterceptReq encode: 5 allocs / 248 B before, 1 alloc / 112 B after).
+
 ### Deprecated
 
 ### Removed
