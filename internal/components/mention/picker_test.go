@@ -1,6 +1,7 @@
 package mention
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pulseaiclub/xui"
@@ -118,4 +119,46 @@ func TestPickerDrawOpen(t *testing.T) {
 	child := surf.Children[0]
 	require.LessOrEqual(t, child.Origin.Y+child.Surface.Size.Height, 20,
 		"panel should sit above anchor: oy=%d h=%d", child.Origin.Y, child.Surface.Size.Height)
+}
+
+func TestPickerAlignsDescriptions(t *testing.T) {
+	p := &Picker{
+		Theme: components.DefaultTheme(),
+		Items: []Item{
+			{Path: "sessions", Description: "Browse sessions"},
+			{Path: "branch", Description: "Switch branch"},
+			{Path: "diff", Description: "Review diff"},
+		},
+		Prefix:        "/",
+		AnchorBottomY: 20,
+		AnchorWidth:   60,
+	}
+	p.Show()
+	surf := p.Draw(components.DrawContext{
+		Max:    components.Size{Width: 80, Height: 24},
+		Method: xui.WidthUnicode,
+	})
+	require.Len(t, surf.Children, 1)
+	panel := surf.Children[0].Surface
+
+	want := -1
+	for row, item := range p.Items {
+		line := panelRow(panel, 1+row)
+		col := strings.Index(line, item.Description)
+		require.GreaterOrEqual(t, col, 0, "row %d missing description: %q", row, line)
+		if want < 0 {
+			want = col
+			continue
+		}
+		assert.Equal(t, want, col, "descriptions must share one column: %q", line)
+	}
+}
+
+// panelRow flattens one surface row into plain text for alignment assertions.
+func panelRow(s components.Surface, y int) string {
+	var b strings.Builder
+	for x := range s.Size.Width {
+		b.WriteString(s.Buffer[y*s.Size.Width+x].Char)
+	}
+	return b.String()
 }
