@@ -18,6 +18,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Picker hints (`/` commands, `@` files, `?` shortcuts) now start in one shared
+  column instead of trailing each label's own length.
+
 ### Security
 
 ## [0.27.6] - 2026-09-27

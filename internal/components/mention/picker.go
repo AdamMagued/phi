@@ -1,6 +1,8 @@
 package mention
 
 import (
+	"strings"
+
 	"github.com/pulseaiclub/xui"
 
 	"github.com/pulseaiclub/phi/internal/components"
@@ -297,6 +299,22 @@ func (p *Picker) Draw(ctx components.DrawContext) components.Surface {
 	} else {
 		pathSt := th.ToolName
 		descSt := th.Muted
+		innerW := boxW - 3
+		const minDescW = 8
+		gap := "  "
+		gapW := xui.StringWidth(gap, ctx.Method)
+		// Align every hint into one column so the list reads top-down instead of
+		// zig-zag. Capping the column keeps one long label from squeezing the
+		// hints to nothing: rows past the cap just get a shorter hint.
+		colW := 0
+		for _, it := range p.Items {
+			if it.Description == "" {
+				continue
+			}
+			colW = max(colW, xui.StringWidth(prefix+it.Path, ctx.Method))
+		}
+		colW = min(colW, innerW-gapW-minDescW)
+		colW = max(colW, 0)
 		for row := 0; row < visible; row++ {
 			fi := row + scroll
 			if fi < 0 || fi >= nItems {
@@ -315,23 +333,17 @@ func (p *Picker) Draw(ctx components.DrawContext) components.Surface {
 				st = xui.Style{Fg: xui.RGBColor(0xe0, 0xf0, 0xff), Bg: selBg, Bold: true}
 				dst = xui.Style{Fg: xui.RGBColor(0xb0, 0xc8, 0xe0), Bg: selBg}
 			}
-			innerW := boxW - 3
-			if item.Description == "" {
-				panel.Print(padL+1, y, layout.TruncateToWidth(label, innerW, ctx.Method), st, ctx.Method)
-				continue
-			}
-			gap := "  "
 			labelW := xui.StringWidth(label, ctx.Method)
-			gapW := xui.StringWidth(gap, ctx.Method)
-			descBudget := innerW - labelW - gapW
-			if descBudget < 8 {
+			descBudget := innerW - max(labelW, colW) - gapW
+			if item.Description == "" || descBudget < minDescW {
 				panel.Print(padL+1, y, layout.TruncateToWidth(label, innerW, ctx.Method), st, ctx.Method)
 				continue
 			}
 			panel.Print(padL+1, y, label, st, ctx.Method)
-			panel.Print(padL+1+labelW, y, gap, dst, ctx.Method)
+			pad := strings.Repeat(" ", max(colW-labelW, 0))
+			panel.Print(padL+1+labelW, y, gap+pad, dst, ctx.Method)
 			panel.Print(
-				padL+1+labelW+gapW,
+				padL+1+labelW+gapW+len(pad),
 				y,
 				layout.TruncateToWidth(item.Description, descBudget, ctx.Method),
 				dst,
