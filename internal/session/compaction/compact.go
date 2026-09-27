@@ -15,12 +15,13 @@ import (
 // summarize and the file operations captured from the summarized history.
 // Recent messages stay in the session tree via FirstKeptEntryId.
 type CompactionPreparation struct {
-	FirstKeptEntryId    string
-	MessagesToSummarize []llm.Message
-	TurnPrefixMessages  []llm.Message
-	IsMidTurnCut        bool
-	TokensBefore        int
-	PreviousSummary     string
+	FirstKeptEntryId       string
+	MessagesToSummarize    []llm.Message
+	TurnPrefixMessages     []llm.Message
+	IsMidTurnCut           bool
+	TokensBefore           int
+	PreviousSummary        string
+	PreviousFileOperations string
 	// ReserveTokens is the headroom compaction keeps from the context window;
 	// summaries are capped at a fraction of it.
 	ReserveTokens int
@@ -98,10 +99,15 @@ func PrepareCompact(
 	}
 
 	previousSummary := ""
+	previousFileOperations := ""
 	var previousPreserveData map[string]any
 	if preCompactionIndex >= 0 {
 		prevCompaction := pathEntries[preCompactionIndex].(session.CompactionEntry)
 		previousSummary = prevCompaction.Compaction.Summary
+		previousFileOperations = formatFileOperations(
+			prevCompaction.Compaction.Details.ReadFiles,
+			prevCompaction.Compaction.Details.ModifiedFiles,
+		)
 		previousPreserveData = prevCompaction.Compaction.PreserveData
 	}
 
@@ -121,15 +127,16 @@ func PrepareCompact(
 	tokenBefore := lastUsage.ContextTokens()
 
 	return &CompactionPreparation{
-		FirstKeptEntryId:     firstKeptEntryID,
-		MessagesToSummarize:  messagesToSummarize,
-		TurnPrefixMessages:   turnPrefixMessages,
-		TokensBefore:         tokenBefore,
-		PreviousSummary:      previousSummary,
-		PreviousPreserveData: previousPreserveData,
-		FileOps:              *fileOps,
-		IsMidTurnCut:         cutPoint.isMidTurnCut,
-		ReserveTokens:        settings.reverseTokens,
+		FirstKeptEntryId:       firstKeptEntryID,
+		MessagesToSummarize:    messagesToSummarize,
+		TurnPrefixMessages:     turnPrefixMessages,
+		TokensBefore:           tokenBefore,
+		PreviousSummary:        previousSummary,
+		PreviousFileOperations: previousFileOperations,
+		PreviousPreserveData:   previousPreserveData,
+		FileOps:                *fileOps,
+		IsMidTurnCut:           cutPoint.isMidTurnCut,
+		ReserveTokens:          settings.reverseTokens,
 	}, nil
 }
 
@@ -189,17 +196,7 @@ func summarizeMidTurnCut(
 
 	go func() {
 		defer wg.Done()
-		if len(preparation.MessagesToSummarize) == 0 {
-			historySummary = "No prior history."
-			return
-		}
-		historySummary, historySummaryErr = generateSummary(
-			ctx,
-			llm,
-			preparation.MessagesToSummarize,
-			preparation.PreviousSummary,
-			summarizationCap(preparation.ReserveTokens, historySummaryRatio),
-		)
+		historySummary, historySummaryErr = summarizeHistory(ctx, preparation, llm)
 	}()
 
 	go func() {
@@ -231,6 +228,10 @@ func summarizeHistory(
 	llm llm.Compactor,
 ) (string, error) {
 	if len(preparation.MessagesToSummarize) == 0 {
+		// An empty history bucket can still have context from an earlier compaction.
+		if preparation.PreviousSummary != "" {
+			return stripFileOperations(preparation.PreviousSummary, preparation.PreviousFileOperations), nil
+		}
 		return "No prior history.", nil
 	}
 	return generateSummary(

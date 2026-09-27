@@ -18,6 +18,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Compaction preserves the previous summary when the history bucket is empty,
+  including mid-turn cuts that only summarize the current turn prefix. Inherited
+  file-operation lists are refreshed once instead of accumulating duplicate blocks.
 - Picker hints (`/` commands, `@` files, `?` shortcuts) now start in one shared
   column instead of trailing each label's own length.
 

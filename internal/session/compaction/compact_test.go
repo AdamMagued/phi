@@ -200,6 +200,66 @@ func TestCompact_TruncatedSummary_ReturnsError(t *testing.T) {
 	assert.Equal(t, []int{13107}, c.maxTokens, "0.8 * reserveTokens")
 }
 
+func TestCompact_EmptyHistoryRefreshesFileOperations(t *testing.T) {
+	for _, midTurn := range []bool{false, true} {
+		name := "history"
+		if midTurn {
+			name = "mid-turn"
+		}
+		t.Run(name, func(t *testing.T) {
+			previous := session.Compaction{
+				Summary: "Keep the public API unchanged.\n\n<read-files>\na.go\nnotes.md\n</read-files>" +
+					"\n\n<modified-files>\nold.go\n</modified-files>",
+				Details: session.CompactionDetails{
+					ReadFiles:     []string{"a.go", "notes.md"},
+					ModifiedFiles: []string{"old.go"},
+				},
+			}
+			c := &captureCompactor{text: "Current turn context."}
+			for range 3 {
+				messages := []llm.Message{{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
+					{Function: llm.Function{Name: "edit", Arguments: `{"path":"a.go"}`}},
+					{Function: llm.Function{Name: "edit", Arguments: `{"path":"b.go"}`}},
+				}}}
+				fileOps := extractFileOperations(messages, []session.MessageEntry{
+					session.CompactionEntry{Compaction: previous},
+				}, 0)
+				prep := CompactionPreparation{
+					PreviousSummary: previous.Summary,
+					PreviousFileOperations: formatFileOperations(
+						previous.Details.ReadFiles,
+						previous.Details.ModifiedFiles,
+					),
+					FileOps: *fileOps,
+				}
+				if midTurn {
+					prep.IsMidTurnCut = true
+					prep.TurnPrefixMessages = messages
+				}
+
+				comp, err := Compact(t.Context(), prep, c)
+
+				require.NoError(t, err)
+				assert.Contains(t, comp.Summary, "Keep the public API unchanged.")
+				assert.Equal(t, 1, strings.Count(comp.Summary, "<read-files>"))
+				assert.Equal(t, 1, strings.Count(comp.Summary, "<modified-files>"))
+				assert.True(t, strings.HasSuffix(
+					comp.Summary,
+					"\n\n<read-files>\nnotes.md\n</read-files>\n\n<modified-files>\na.go\nb.go\nold.go\n</modified-files>",
+				))
+				assert.Equal(t, []string{"notes.md"}, comp.Details.ReadFiles)
+				assert.Equal(t, []string{"a.go", "b.go", "old.go"}, comp.Details.ModifiedFiles)
+				previous = comp
+			}
+			wantCalls := 0
+			if midTurn {
+				wantCalls = 3
+			}
+			assert.Len(t, c.prompts, wantCalls)
+		})
+	}
+}
+
 // A mid-turn cut drops the turn prefix as well as the history, and both buckets
 // are summarized away. Every file touched in either bucket has to reach the
 // file-operation lists: missing the prefix listed the edited files of the cut

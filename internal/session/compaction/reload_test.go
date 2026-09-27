@@ -78,3 +78,49 @@ func TestFindCutIndex_ReloadedEntriesRespectTokenBudget(t *testing.T) {
 	cutIndex := findCutIndex(entries, 0, len(entries), 25, cutPoints)
 	assert.NotEqual(t, cutPoints[0], cutIndex)
 }
+
+func TestCompact_EmptyHistoryPreservesSummaryAfterReload(t *testing.T) {
+	dir := t.TempDir()
+	m, err := session.NewSessionManager(dir, session.WithSessionDir(dir), session.WithShouldFlush(true))
+	require.NoError(t, err)
+	const previousSummary = "Keep the public API unchanged."
+	const fileOperations = "\n\n<read-files>\nnotes.md\n</read-files>\n\n<modified-files>\na.go\n</modified-files>"
+	_, err = m.AppendCompaction(session.Compaction{
+		Summary: previousSummary + fileOperations,
+		Details: session.CompactionDetails{ReadFiles: []string{"notes.md"}, ModifiedFiles: []string{"a.go"}},
+	})
+	require.NoError(t, err)
+	_, err = m.Append(llm.Message{Role: llm.RoleUser, Content: "fix the parser"})
+	require.NoError(t, err)
+	keptID, err := m.Append(llm.Message{Role: llm.RoleAssistant, Content: sizedContent(30)})
+	require.NoError(t, err)
+	m, err = session.OpenSession(m.File())
+	require.NoError(t, err)
+
+	prep, err := PrepareCompact(m.BuildContext(), Settings{keepRecentTokens: 20})
+	require.NoError(t, err)
+	require.True(t, prep.IsMidTurnCut)
+	require.Empty(t, prep.MessagesToSummarize)
+	require.NotEmpty(t, prep.TurnPrefixMessages)
+	require.Equal(t, keptID, prep.FirstKeptEntryId)
+
+	c := &captureCompactor{text: "Current turn context."}
+	comp, err := Compact(t.Context(), *prep, c)
+	require.NoError(t, err)
+	want := previousSummary + "\n\n---\n\n**Turn Context (mid-turn cut):**\n\nCurrent turn context." + fileOperations
+	assert.Equal(t, want, comp.Summary)
+	assert.Len(t, c.prompts, 1, "only the turn-prefix summary needs a model request")
+	_, err = m.AppendCompaction(comp)
+	require.NoError(t, err)
+
+	m, err = session.OpenSession(m.File())
+	require.NoError(t, err)
+	entries := m.BuildContext()
+	require.Len(t, entries, 2)
+	restored, ok := entries[0].(session.CompactionEntry)
+	require.True(t, ok)
+	assert.Equal(t, want, restored.Compaction.Summary)
+	assert.Equal(t, []string{"notes.md"}, restored.Compaction.Details.ReadFiles)
+	assert.Equal(t, []string{"a.go"}, restored.Compaction.Details.ModifiedFiles)
+	assert.Equal(t, keptID, entries[1].GetID())
+}
