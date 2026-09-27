@@ -28,11 +28,16 @@ func toolsByName(t *testing.T, api *ext.API) map[string]ext.Tool {
 	return byName
 }
 
-// assemble runs the plugin's assembler the way an engine does.
-func assemble(t *testing.T, plugin extension.Plugin, scope extension.Scope) []string {
+// assemble runs the plugin's prompt sections the way an engine does.
+func assemble(t *testing.T, plugin extension.Plugin, scope ext.Scope) []string {
 	t.Helper()
-	require.NotNil(t, plugin.Assemble, "MCP always has an assembler to skip")
-	return append([]string{"core"}, plugin.Assemble(extension.AssembleContext{Scope: scope})...)
+	runner := extension.NewRunner()
+	t.Cleanup(runner.Close)
+	runner.AddPlugin(plugin)
+	return runner.AssemblePrompt(
+		extension.AssembleContext{Scope: scope},
+		func() []string { return []string{"core"} },
+	)
 }
 
 func TestPluginRegistersMetaTools(t *testing.T) {
@@ -56,7 +61,6 @@ func TestPluginRegistersMetaTools(t *testing.T) {
 func TestPluginNilPool(t *testing.T) {
 	plugin := mcp.Plugin(nil)
 	assert.Nil(t, plugin.API)
-	assert.Nil(t, plugin.Assemble)
 	assert.Nil(t, plugin.Close)
 }
 
@@ -78,7 +82,7 @@ func TestPluginPromptSection(t *testing.T) {
 		"browsermcp": {Command: []string{"true"}},
 		"github":     {Command: []string{"true"}},
 	})
-	sections := assemble(t, mcp.Plugin(pool), extension.ScopeMain)
+	sections := assemble(t, mcp.Plugin(pool), ext.ScopeMain)
 	require.Len(t, sections, 2)
 	require.Equal(t, "core", sections[0], "the block goes after everything else")
 
@@ -99,11 +103,11 @@ func TestPluginPromptSection(t *testing.T) {
 // A sub-agent gets no mcp_* tools, so promising them in its prompt would send
 // the model after tools it cannot call.
 func TestPluginPromptSectionSkippedForSubagents(t *testing.T) {
-	sections := assemble(t, mcp.Plugin(testPool()), extension.ScopeSubagent)
+	sections := assemble(t, mcp.Plugin(testPool()), ext.ScopeSubagent)
 
 	assert.Equal(t, []string{"core"}, sections)
 }
 
 func TestPluginPromptSectionEmptyWithoutServers(t *testing.T) {
-	assert.Equal(t, []string{"core"}, assemble(t, mcp.Plugin(mcp.NewPool(nil)), extension.ScopeMain))
+	assert.Equal(t, []string{"core"}, assemble(t, mcp.Plugin(mcp.NewPool(nil)), ext.ScopeMain))
 }

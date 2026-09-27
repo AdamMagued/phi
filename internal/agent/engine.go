@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/agent/prompt"
 	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
@@ -166,9 +167,9 @@ func (engine *Engine) systemPrompt() string {
 	}
 	// omitExtTools is set for sub-agents, which register no extension tools; the
 	// scope tells assemblers not to advertise tools the model cannot call.
-	scope := extension.ScopeMain
+	scope := ext.ScopeMain
 	if engine.omitExtTools {
-		scope = extension.ScopeSubagent
+		scope = ext.ScopeSubagent
 	}
 	ac := extension.AssembleContext{
 		Scope:         scope,

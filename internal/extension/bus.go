@@ -34,7 +34,7 @@ type bus struct {
 	activeNames map[string]bool // nil = all active
 	host        ext.HostOpts
 
-	plugins []Plugin          // built-in plugins: prompt assemblers + Close
+	plugins []Plugin          // built-in plugins: Close lifecycle
 	builtin map[*ext.API]bool // APIs from addPlugin, not from a subprocess
 }
 
@@ -52,7 +52,7 @@ func (b *bus) addAPI(api *ext.API) {
 // subprocess extensions, so tools, commands and events take the identical path;
 // the host-side extras stay here. The zero Plugin is ignored.
 func (b *bus) addPlugin(p Plugin) {
-	if p.API == nil && p.Assemble == nil && p.Close == nil {
+	if p.API == nil && p.Close == nil {
 		return
 	}
 	b.mu.Lock()
@@ -68,23 +68,25 @@ func (b *bus) addPlugin(p Plugin) {
 }
 
 // AssemblePrompt builds the system prompt: the core blocks followed by each
-// plugin's sections, in registration order. Subprocess extensions contribute
-// nothing — the PXB protocol has no call for this.
+// API's prompt sections, in registration order. Subprocess extensions cannot
+// register prompt sections — the PXB protocol has no call for this — so only
+// built-in plugins contribute today.
 //
-// The plugin list is snapshotted so assembler code never runs under b.mu.
+// The API list is snapshotted so rendering never runs under b.mu.
 func (b *bus) AssemblePrompt(ac AssembleContext, core func() []string) []string {
 	b.mu.Lock()
-	plugins := append([]Plugin(nil), b.plugins...)
+	apis := append([]*ext.API(nil), b.apis...)
 	b.mu.Unlock()
 
-	sections := core()
-	for _, plugin := range plugins {
-		if plugin.Assemble == nil {
-			continue
+	out := core()
+	for _, api := range apis {
+		for _, s := range api.Sections() {
+			if body := renderSection(s, ac.Scope); body != "" {
+				out = append(out, body)
+			}
 		}
-		sections = append(sections, plugin.Assemble(ac)...)
 	}
-	return sections
+	return out
 }
 
 // closePlugins releases resources owned by built-in plugins. Runner.Close calls

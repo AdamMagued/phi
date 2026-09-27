@@ -12,7 +12,7 @@ import (
 	"github.com/pulseaiclub/phi/internal/extension"
 )
 
-// fakePlugin is a built-in plugin with all three host-side extras wired.
+// fakePlugin is a built-in plugin with a tool, a command and a prompt block.
 func fakePlugin(t *testing.T, closed *bool) extension.Plugin {
 	t.Helper()
 	api := ext.NewAPI()
@@ -28,9 +28,9 @@ func fakePlugin(t *testing.T, closed *bool) extension.Plugin {
 		Handler: func(string, *ext.Context) error { return nil },
 	})
 
+	api.RegisterAssembler("", "# fake\n\nbuilt in")
 	return extension.Plugin{
-		API:      api,
-		Assemble: extension.AppendSections("# fake\n\nbuilt in"),
+		API: api,
 		Close: func() error {
 			*closed = true
 			return nil
@@ -81,10 +81,9 @@ func TestAssemblersRunInRegistrationOrder(t *testing.T) {
 	t.Cleanup(runner.Close)
 
 	for _, section := range []string{"# one", "# two"} {
-		runner.AddPlugin(extension.Plugin{
-			API:      ext.NewAPI(),
-			Assemble: extension.AppendSections(section),
-		})
+		api := ext.NewAPI()
+		api.RegisterAssembler("", section)
+		runner.AddPlugin(extension.Plugin{API: api})
 	}
 
 	assert.Equal(t, []string{"core", "# one", "# two"}, assemble(t, runner, "core"))
@@ -92,34 +91,40 @@ func TestAssemblersRunInRegistrationOrder(t *testing.T) {
 
 // Blank blocks are dropped and the rest trimmed, so a plugin that builds its
 // block from possibly-empty config cannot leave ragged gaps in the prompt.
-func TestAppendSectionsDropsBlanksAndTrims(t *testing.T) {
+func TestAssemblerDropsBlanksAndTrims(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 
-	runner.AddPlugin(extension.Plugin{Assemble: extension.AppendSections("  ", "", "  # kept  ")})
+	api := ext.NewAPI()
+	api.RegisterAssembler("", "  ")
+	api.RegisterAssembler("", "")
+	api.RegisterAssembler("", "  # kept  ")
+	runner.AddPlugin(extension.Plugin{API: api})
 
 	assert.Equal(t, []string{"core", "# kept"}, assemble(t, runner, "core"))
 }
 
-// An assembler can tell scope apart: a sub-agent registers no extension tools,
-// so blocks announcing them must be skippable. This is the hook that keeps the
-// prompt honest about what the model can actually call.
-func TestAssemblerSeesTheScope(t *testing.T) {
+// A section's Scope gates which engines see it: a sub-agent registers no
+// extension tools, so a block announcing them must be skippable. This is the
+// hook that keeps the prompt honest about what the model can actually call.
+func TestAssemblerFiltersByScope(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 
-	var got extension.Scope
-	runner.AddPlugin(extension.Plugin{Assemble: func(ac extension.AssembleContext) []string {
-		got = ac.Scope
-		return nil
-	}})
+	api := ext.NewAPI()
+	api.RegisterAssembler(ext.ScopeMain, "main-only")
+	api.RegisterAssembler(ext.ScopeSubagent, "sub-only")
+	runner.AddPlugin(extension.Plugin{API: api})
 
-	runner.AssemblePrompt(extension.AssembleContext{Scope: extension.ScopeSubagent}, func() []string { return nil })
+	core := func() []string { return []string{"core"} }
+	main := runner.AssemblePrompt(extension.AssembleContext{Scope: ext.ScopeMain}, core)
+	assert.Equal(t, []string{"core", "main-only"}, main)
 
-	assert.Equal(t, extension.ScopeSubagent, got)
+	sub := runner.AssemblePrompt(extension.AssembleContext{Scope: ext.ScopeSubagent}, core)
+	assert.Equal(t, []string{"core", "sub-only"}, sub)
 }
 
-// A plugin with no API and no assembler is inert, so a caller can build one
+// A plugin with no API and nothing to close is inert, so a caller can build one
 // from a nil dependency (an MCP-less session) without branching.
 func TestZeroPluginIsIgnored(t *testing.T) {
 	runner := extension.NewRunner()
@@ -131,12 +136,15 @@ func TestZeroPluginIsIgnored(t *testing.T) {
 	assert.Equal(t, []string{"core"}, assemble(t, runner, "core"))
 }
 
-// A prompt-only plugin needs no API: it contributes text and nothing to call.
-func TestPluginWithoutAPIStillAssembles(t *testing.T) {
+// A plugin can carry prompt sections and nothing to call: its API registers no
+// tools, but the bus still renders its blocks.
+func TestSectionsOnlyPluginAssembles(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 
-	runner.AddPlugin(extension.Plugin{Assemble: extension.AppendSections("# text only")})
+	api := ext.NewAPI()
+	api.RegisterAssembler("", "# text only")
+	runner.AddPlugin(extension.Plugin{API: api})
 
 	assert.Nil(t, runner.ExtensionTools())
 	assert.Equal(t, []string{"core", "# text only"}, assemble(t, runner, "core"))

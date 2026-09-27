@@ -18,6 +18,7 @@ type API struct {
 	handlers map[string][]any
 	tools    []Tool
 	commands map[string]Command
+	sections []PromptSection
 
 	// Bound by host after load.
 	ui           UI
@@ -74,6 +75,22 @@ func (a *API) RegisterCommand(name string, cmd Command) {
 	a.commands[name] = cmd
 }
 
+// RegisterAssembler adds a static system-prompt block, mirroring RegisterTool:
+// prompt blocks register the same way as tools. scope gates which engines see
+// body; an empty scope means all.
+//
+// Built-in plugins register in-process and their blocks take effect. Subprocess
+// (PXB) extensions cannot yet ship prompt blocks — the wire protocol has no
+// call for this — so the registration is local to their API only.
+func (a *API) RegisterAssembler(scope Scope, body string) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.sections = append(a.sections, PromptSection{Scope: scope, Body: body})
+}
+
 // Handlers returns a copy of handlers for event.
 func (a *API) Handlers(event string) []any {
 	if a == nil {
@@ -96,6 +113,18 @@ func (a *API) Tools() []Tool {
 	defer a.mu.Unlock()
 	out := make([]Tool, len(a.tools))
 	copy(out, a.tools)
+	return out
+}
+
+// Sections returns registered prompt sections.
+func (a *API) Sections() []PromptSection {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]PromptSection, len(a.sections))
+	copy(out, a.sections)
 	return out
 }
 

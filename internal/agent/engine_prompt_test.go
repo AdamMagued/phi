@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
 	"github.com/pulseaiclub/phi/internal/llm"
@@ -14,17 +15,13 @@ import (
 	"github.com/pulseaiclub/phi/internal/permission"
 )
 
-func probeRunner(t *testing.T, seen *extension.AssembleContext, text string) *extension.Runner {
+func probeRunner(t *testing.T, text string) *extension.Runner {
 	t.Helper()
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
-	runner.AddPlugin(extension.Plugin{Assemble: func(ac extension.AssembleContext) []string {
-		*seen = ac
-		if text == "" {
-			return nil
-		}
-		return []string{text}
-	}})
+	api := ext.NewAPI()
+	api.RegisterAssembler(ext.ScopeMain, text)
+	runner.AddPlugin(extension.Plugin{API: api})
 	return runner
 }
 
@@ -57,37 +54,31 @@ func newPromptEngine(
 }
 
 func TestSystemPromptPlacesPluginBlocksLast(t *testing.T) {
-	seen := &extension.AssembleContext{}
 	model := probeModel(t)
 
 	plain := newPromptEngine(t, extension.Nop, model).systemPrompt()
 	require.NotContains(t, plain, "# probe")
 
-	prompt := newPromptEngine(t, probeRunner(t, seen, "# probe"), model).systemPrompt()
+	prompt := newPromptEngine(t, probeRunner(t, "# probe"), model).systemPrompt()
 	require.True(t, strings.HasSuffix(prompt, "# probe"), "plugin blocks come after the built-in prompt")
 }
 
-// The context is what an assembler has instead of asking the engine: it must
-// describe the same prompt the core blocks were built from, on every rebuild.
-func TestAssembleContextMirrorsTheEngine(t *testing.T) {
-	seen := &extension.AssembleContext{}
-	runner := probeRunner(t, seen, "# probe")
+// A model switch rebuilds the prompt from scratch, so a plugin block stays in
+// sync with the new core rather than surviving as a stale cache.
+func TestPromptRebuildsOnModelSwitch(t *testing.T) {
 	model := probeModel(t)
-	newPromptEngine(t, runner, model)
+	runner := probeRunner(t, "# probe")
 
-	require.Equal(t, extension.ScopeMain, seen.Scope)
-	require.Equal(t, model.SkillPath, seen.SkillPath)
-	require.False(t, seen.AgentsEnabled)
-	require.Zero(t, seen.MaxConcurrent)
+	engine := newPromptEngine(t, runner, model)
+	require.Contains(t, engine.systemPrompt(), "# probe")
 
-	// A model switch rebuilds the prompt, and the context follows it.
-	switched := probeModel(t)
-	newPromptEngine(t, runner, model).SetModel(switched)
-	require.Equal(t, switched.SkillPath, seen.SkillPath)
+	engine.SetModel(probeModel(t))
+	require.Contains(t, engine.systemPrompt(), "# probe", "model switch must rebuild the prompt")
 }
 
-func TestAssembleContextReportsSubAgentTools(t *testing.T) {
-	seen := &extension.AssembleContext{}
+// agent_* tools and the sub-agent concurrency cap reach the system prompt via
+// the core builder, which is what the AssembleContext fields exist to carry.
+func TestJobsReachSystemPrompt(t *testing.T) {
 	mgr, err := job.New(job.Options{
 		Root: t.TempDir(),
 		Runner: job.RunnerFunc(func(context.Context, job.RunEnv) (string, error) {
@@ -97,10 +88,7 @@ func TestAssembleContextReportsSubAgentTools(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mgr.Close(t.Context()) })
 
-	engine := newPromptEngine(t, probeRunner(t, seen, "# probe"), probeModel(t), WithJobs(mgr))
-
-	require.True(t, seen.AgentsEnabled)
-	require.Equal(t, mgr.MaxConcurrent(), seen.MaxConcurrent)
+	engine := newPromptEngine(t, extension.Nop, probeModel(t), WithJobs(mgr))
 	require.Contains(t, engine.systemPrompt(), "At most")
 }
 

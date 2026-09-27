@@ -362,7 +362,7 @@ them under management.
 
 | Path | Role |
 |------|------|
-| `ext/go/` (module `github.com/pulseaiclub/phi/ext/go`) | Shared types (`Tool`, events) |
+| `ext/go/` (module `github.com/pulseaiclub/phi/ext/go`) | Shared types (`Tool`, events, `PromptSection`) |
 | `ext/go/pxb` | Binary wire protocol |
 | `ext/go/phi` | Go author SDK (`ExtensionAPI.Run`) |
 | `ext/rust` (crate `phi-ext`) | Rust author SDK (`pxb` + `phi` modules; deps: serde/serde_json + tokio `rt`) |
@@ -376,19 +376,23 @@ A `Plugin` carries only what a subprocess cannot:
 
 | Field | Use |
 |-------|-----|
-| `API` | `ext.NewAPI()` with `RegisterTool` / `RegisterCommand` / `On`. Optional; a zero `Plugin` is ignored |
-| `Assemble` | `PromptAssembler` contributing system-prompt blocks (there is no wire call for this) |
+| `API` | `ext.NewAPI()` with `RegisterTool` / `RegisterCommand` / `RegisterAssembler` / `On`. Optional; a zero `Plugin` is ignored |
 | `Close` | Released by `Runner.Close`, after the subprocesses are gone |
 
 ### Prompt assembly
 
-The system prompt is built from the core blocks (`internal/agent/prompt`) plus whatever `Assemble` returns. Assemblers run in registration order, each appending its sections after the core blocks and after earlier plugins' blocks:
+The system prompt is built from the core blocks (`internal/agent/prompt`) plus each API's `PromptSection` blocks (`ext/go/prompt.go`), in registration order. `API.RegisterAssembler` mirrors `API.RegisterTool`, so tools and prompt blocks register the same way:
 
 ```go
-runner.AddPlugin(extension.Plugin{Assemble: extension.AppendSections("# my block")})
+api := ext.NewAPI()
+api.RegisterTool(myTool)
+api.RegisterAssembler(ext.ScopeMain, "# my block")
+runner.AddPlugin(extension.Plugin{API: api, Close: pool.Close})
 ```
 
-The `AssembleContext` it receives mirrors the engine the prompt is for: `Scope` (main vs sub-agent), `SkillPath`, `AgentsEnabled`, `MaxConcurrent`. Blocks that announce tools must check the scope: a sub-agent runs without extension tools, so advertising them sends the model after a tool it cannot call.
+A `PromptSection` is data, not a closure: prompt assembly runs at engine construction time with no request context, so a block cannot depend on per-call state. `Scope` gates which engines see the block — `ScopeMain` hides it from sub-agents, which run without extension tools, so advertising them sends the model after a tool it cannot call; an empty scope means every engine. Blank bodies are dropped and the rest trimmed.
+
+Subprocess (PXB) extensions cannot contribute prompt blocks — the wire protocol has no call for this — so `RegisterAssembler` takes effect only for built-in plugins today.
 
 Built-in plugins are also exempt from the subprocess rule that a plugin may only deny: they run in-process and on the fast path. Keep the permission gate in the host regardless.
 

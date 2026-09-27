@@ -30,11 +30,9 @@ func Plugin(pool *Pool) extension.Plugin {
 	api.RegisterTool(inspectTool(pool))
 	api.RegisterTool(callTool(pool))
 
-	return extension.Plugin{
-		API:      api,
-		Assemble: promptAssembler(promptSection(pool.ServerNames())),
-		Close:    pool.Close,
-	}
+	api.RegisterAssembler(ext.ScopeMain, promptSection(pool.ServerNames()))
+
+	return extension.Plugin{API: api, Close: pool.Close}
 }
 
 func listTool(pool *Pool) ext.Tool {
@@ -178,18 +176,6 @@ Prefer mcp_list then mcp_inspect before calling unfamiliar tools.`,
 			body := FormatCallResult(out, 32_000)
 			return ext.ToolResult{Content: body, Detail: in.Server + "/" + in.Tool, Output: body}, nil
 		},
-	}
-}
-
-// promptAssembler announces the configured servers, except in an engine that
-// runs without extension tools: a sub-agent has no mcp_* tools, so naming them
-// would send the model after tools it cannot call.
-func promptAssembler(section string) extension.PromptAssembler {
-	return func(ac extension.AssembleContext) []string {
-		if ac.Scope != extension.ScopeMain || section == "" {
-			return nil
-		}
-		return []string{section}
 	}
 }
 
