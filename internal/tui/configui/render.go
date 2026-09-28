@@ -112,7 +112,7 @@ func (e *ConfigEditor) ensureVisible(page int) {
 
 func (e *ConfigEditor) paintRow(s *components.Surface, y int, r row, selected bool, method xui.WidthMethod) {
 	th := e.themeOrDefault()
-	base, muted := th.Foreground, th.Muted
+	base, secondary := th.Foreground, secondaryStyle(th)
 	bg := th.SelectionBg.Bg
 	if selected {
 		for x := 1; x < s.Size.Width-1; x++ {
@@ -120,27 +120,36 @@ func (e *ConfigEditor) paintRow(s *components.Surface, y int, r row, selected bo
 		}
 		base = th.SelectionFg
 		base.Bg = bg
-		muted = base
-		muted.Dim = false
+		// Text on the stripe takes the stripe's tone, but the label column stays
+		// one weight below the value column: the eye belongs on the data, not on
+		// the key names.
+		secondary = base
+		secondary.Bold = false
 	}
 	switch r.kind {
 	case rowSection:
 		e.paintSection(s, y, r, method)
 	case rowModel:
-		name := base
-		name.Bold = true
-		x := xModel
-		x += s.Print(x, y, r.name, name, method)
+		// A model header is a label/value row like any other: the name owns the
+		// label column and the default marker plus the preset summary share the
+		// value column, so a long name can never overwrite the badge.
+		col := e.valueCol()
+		nameStyle := base
+		nameStyle.Bold = true
+		s.Print(xModel, y, layout.TruncateToWidth(r.name, max(col-1-xModel, 1), method), nameStyle, method)
+		x := col
 		if r.badge != "" {
-			s.Print(x+1, y, r.badge, withBG(th.Success, bg, selected), method)
+			x += s.Print(x, y, r.badge, withBG(th.Success, bg, selected), method)
+			if r.note != "" {
+				x += s.Print(x, y, chrome.Sep, secondary, method)
+			}
 		}
 		if r.note != "" {
-			col := e.valueCol()
-			s.Print(col, y, layout.TruncateToWidth(r.note, s.Size.Width-2-col, method), muted, method)
+			s.Print(x, y, layout.TruncateToWidth(r.note, max(s.Size.Width-2-x, 1), method), secondary, method)
 		}
 	case rowItem:
 		x := xNested
-		x += s.Print(x, y, "· ", th.Border, method)
+		x += s.Print(x, y, "· ", withBG(th.Border, bg, selected), method)
 		style := e.valStyle(r.style, bg, selected)
 		text := r.label
 		if e.edit != nil && e.edit.key == r.key {
@@ -162,7 +171,7 @@ func (e *ConfigEditor) paintRow(s *components.Surface, y int, r row, selected bo
 		}
 		s.Print(xNested, y, layout.TruncateToWidth(r.label, s.Size.Width-2-xNested, method), style, method)
 	case rowField:
-		e.paintField(s, y, r, selected, base, muted, bg, method)
+		e.paintField(s, y, r, selected, base, secondary, bg, method)
 	}
 }
 
@@ -171,7 +180,7 @@ func (e *ConfigEditor) paintField(
 	y int,
 	r row,
 	selected bool,
-	base, muted xui.Style,
+	base, secondary xui.Style,
 	bg xui.Color,
 	method xui.WidthMethod,
 ) {
@@ -181,10 +190,9 @@ func (e *ConfigEditor) paintField(
 		x = xModelField
 	}
 	col := e.valueCol()
-	labelStyle := muted
-	if selected {
-		labelStyle = base
-	}
+	// Labels are a reading aid: they never take emphasis away from the value
+	// column, on or off the stripe.
+	labelStyle := secondary
 	s.Print(x, y, layout.TruncateToWidth(r.label, max(col-x-2, 1), method), labelStyle, method)
 
 	style := e.valStyle(r.style, bg, selected)
@@ -207,6 +215,8 @@ func (e *ConfigEditor) paintField(
 	if selected && r.hint != "" {
 		note := th.Muted
 		note.Dim = true
+		// The selection bar is one continuous stripe, hint included.
+		note.Bg = bg
 		s.Print(col+printed+2, y, layout.TruncateToWidth(r.hint, max(avail-printed-2, 0), method), note, method)
 	}
 }
@@ -282,12 +292,25 @@ func (e *ConfigEditor) statusStyle() xui.Style {
 	}
 }
 
+// secondaryStyle is the form's one quiet tone: field labels, values the file
+// does not set, and rules inherited from the built-in preset all share it.
+//
+// Dim is cleared on purpose. SGR 2 lands anywhere between "slightly softer" and
+// "all but invisible" depending on the terminal, and a label column that sinks
+// into the background next to a crisp value column is what makes a two-column
+// form read as mud. Trailing hints keep Dim — they are meant to disappear first.
+func secondaryStyle(th components.Theme) xui.Style {
+	st := th.Muted
+	st.Dim = false
+	return st
+}
+
 func (e *ConfigEditor) valStyle(v valueStyle, bg xui.Color, selected bool) xui.Style {
 	th := e.themeOrDefault()
 	var st xui.Style
 	switch v {
 	case styleMuted:
-		st = th.Muted
+		st = secondaryStyle(th)
 	case styleOn:
 		st = th.Success
 	case styleWarn:
@@ -296,6 +319,12 @@ func (e *ConfigEditor) valStyle(v valueStyle, bg xui.Color, selected bool) xui.S
 		st = th.Foreground
 	}
 	if selected {
+		// A filled value takes the stripe highlight; an unset one keeps the flat
+		// quiet tone it has everywhere else, so the cursor cannot make an empty
+		// field look written.
+		if v == styleValue {
+			st = th.SelectionFg
+		}
 		st.Bg = bg
 		st.Dim = false
 	}

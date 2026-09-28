@@ -500,13 +500,16 @@ func (e *ConfigEditor) requestQuit(ctx *components.EventContext) {
 	}
 }
 
+// handleConfirmKey moves between the two decision rows the way every other
+// panel does: up/left picks the row above, down/right/tab the row below. The
+// rows are painted Yes then No, so yes is the first one.
 func (e *ConfigEditor) handleConfirmKey(ctx *components.EventContext, k xui.KeyEvent) {
 	st := e.confirm
 	switch k.Code {
-	case xui.KeyLeft, xui.KeyUp:
-		st.yes = false
-	case xui.KeyRight, xui.KeyDown, xui.KeyTab:
+	case xui.KeyUp, xui.KeyLeft:
 		st.yes = true
+	case xui.KeyDown, xui.KeyRight, xui.KeyTab:
+		st.yes = false
 	case xui.KeyEnter:
 		e.confirm = nil
 		if st.yes && st.run != nil {
@@ -524,9 +527,9 @@ func (e *ConfigEditor) handleConfirmKey(ctx *components.EventContext, k xui.KeyE
 		case 'n', 'N':
 			e.confirm = nil
 		case 'h', 'H', 'k', 'K':
-			st.yes = false
-		case 'l', 'L', 'j', 'J':
 			st.yes = true
+		case 'l', 'L', 'j', 'J':
+			st.yes = false
 		}
 	default:
 		ctx.Consume = true

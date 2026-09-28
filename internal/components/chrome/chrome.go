@@ -74,9 +74,10 @@ func AskHint(nav, action, dismiss string) string {
 	return strings.Join(parts, Sep)
 }
 
-// ConfirmHint is the confirm-panel footer (includes Y/N chords).
+// ConfirmHint is the confirm-panel footer (includes Y/N chords). Decision rows
+// stack vertically, so the nav fragment names the vertical axis.
 func ConfirmHint() string {
-	return "←→ move" + Sep + "Enter confirm" + Sep + "Y yes" + Sep + "N/Esc cancel"
+	return "↑↓ move" + Sep + "Enter confirm" + Sep + "Y yes" + Sep + "N/Esc cancel"
 }
 
 // FeedbackHint is the deny-with-feedback footer.

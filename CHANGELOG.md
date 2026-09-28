@@ -21,6 +21,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `ReadConfigDoc`, `Save`, `Validate`). The runtime parser and the editor now
   share one definition instead of two hand-kept copies, and empty `api_key` /
   `base_url` values are omitted when a file is written.
+- The `phi config` form gives its two columns one job each: labels and values the
+  file does not set share a single quiet tone, real values are body text, and
+  state (`on`, `default`, `not set`) is the only thing that spends a color. The
+  label column no longer relies on `Dim`, which terminals render anywhere from
+  soft to invisible, and a filled `api_key` now reads as data instead of as an
+  empty field.
 
 ### Deprecated
 
@@ -42,6 +48,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   file-operation lists are refreshed once instead of accumulating duplicate blocks.
 - Picker hints (`/` commands, `@` files, `?` shortcuts) now start in one shared
   column instead of trailing each label's own length.
+- `phi config` model headers now sit on the same grid as every other row: the
+  model name owns the label column (truncated when it does not fit) and the
+  `default` badge plus the api/context summary share the value column. A long
+  name used to reach into the summary and eat the badge's last letter.
+
+- The `phi config` confirm modal read its arrows backwards: `↑`/`←` selected No
+  and `↓`/`→` selected Yes, so pressing a key in the visible direction looked
+  dead. The keys now pick the row above / below like every other decision
+  panel, and the footer says `↑↓ move` instead of pointing at a horizontal axis.
 
 ### Security
 

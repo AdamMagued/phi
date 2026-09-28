@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,6 +201,39 @@ func TestAddAndDeleteModel(t *testing.T) {
 	typeRune(e, 'y')
 	require.Len(t, doc.Models, 1)
 	assert.True(t, doc.Models[0].Default)
+}
+
+// The confirm rows are painted Yes then No, so the keys must follow that order:
+// up/left to the row above, down/right/tab to the row below. Reversed keys made
+// the highlight jump at the same key the user pressed and stand still on a
+// second press, which read as an unresponsive dialog.
+func TestConfirmArrowsFollowRowOrder(t *testing.T) {
+	doc := sampleDoc()
+	e := newTestEditor(t, doc)
+
+	focus(t, e, modelKey(0, fName))
+	typeRune(e, 'd')
+	require.NotNil(t, e.confirm)
+	require.False(t, e.confirm.yes, "a destructive confirm starts on No, the second row")
+
+	press(e, xui.KeyUp, 0)
+	assert.True(t, e.confirm.yes, "↑ selects the first row (Yes)")
+	press(e, xui.KeyDown, 0)
+	assert.False(t, e.confirm.yes, "↓ selects the second row (No)")
+
+	press(e, xui.KeyLeft, 0)
+	assert.True(t, e.confirm.yes, "← is the same axis as ↑")
+	press(e, xui.KeyRight, 0)
+	assert.False(t, e.confirm.yes, "→ is the same axis as ↓")
+
+	press(e, xui.KeyRune, 'k')
+	assert.True(t, e.confirm.yes)
+	press(e, xui.KeyRune, 'j')
+	assert.False(t, e.confirm.yes)
+
+	press(e, xui.KeyEscape, 0)
+	assert.Nil(t, e.confirm)
+	assert.Len(t, doc.Models, 2, "a cancel must not delete the model")
 }
 
 func TestDeleteModelCanBeCancelled(t *testing.T) {
@@ -420,6 +454,43 @@ func TestDrawPaintsFormAndStatus(t *testing.T) {
 	assert.Contains(t, components.SurfaceText(surf), "●")
 }
 
+// modelHeader returns the painted header line of one model, without the right
+// border or trailing padding. Header rows start at xModel, field rows at
+// xModelField, so the leading cell fixes which one this is.
+func modelHeader(t *testing.T, text, name string) string {
+	t.Helper()
+	for l := range strings.SplitSeq(text, "\n") {
+		if strings.HasPrefix(l, "│   "+name) {
+			return strings.TrimRight(l, " │")
+		}
+	}
+	require.FailNow(t, "no model header painted", "name=%q", name)
+	return ""
+}
+
+func TestDrawAlignsModelHeadersToValueColumn(t *testing.T) {
+	window := 1_000_000
+	doc := &project.ConfigDoc{Models: []project.ModelDoc{
+		{Name: "deepseek-v4-flash", API: "OpenAIResponses", ContextWindow: &window, Default: true},
+		{Name: "glm-5.2", API: "OpenAIResponses", ContextWindow: &window},
+	}}
+	e := newTestEditor(t, doc)
+
+	surf := e.Draw(components.DrawContext{Max: components.Size{Width: 100, Height: 48}, Method: xui.WidthUnicode})
+	col := e.valueCol()
+	text := components.SurfaceText(surf)
+
+	// The name owns the label column, and the default marker plus the summary
+	// share the value column: a long name is truncated rather than allowed to
+	// paint over the badge.
+	name := "deepseek-v4-flash"
+	pad := strings.Repeat(" ", col-xModel-len(name))
+	assert.Equal(t, "│   "+name+pad+"default · OpenAIResponses · 1M context", modelHeader(t, text, name))
+	assert.Equal(t,
+		"│   glm-5.2"+strings.Repeat(" ", col-xModel-len("glm-5.2"))+"OpenAIResponses · 1M context",
+		modelHeader(t, text, "glm-5.2"))
+}
+
 func TestDrawIsStableOnTinyScreens(t *testing.T) {
 	e := newTestEditor(t, sampleDoc())
 	for _, size := range []components.Size{{Width: 1, Height: 1}, {Width: 20, Height: 4}, {Width: 40, Height: 6}} {
@@ -541,6 +612,106 @@ func TestFetchDiscardedWhenModelMoves(t *testing.T) {
 	e.pollFetch()
 	assert.False(t, e.picker.Open, "picker must not open for a model that moved")
 	assert.Contains(t, e.status, "changed while fetching")
+}
+
+// drawForm paints the editor at a fixed frame size and returns the surface.
+func drawForm(t *testing.T, e *ConfigEditor) components.Surface {
+	t.Helper()
+	const width, height = 100, 40
+	return e.Draw(components.DrawContext{
+		Max:    components.Size{Width: width, Height: height},
+		Method: xui.WidthUnicode,
+	})
+}
+
+// formRowY is the screen row a form key landed on in the last Draw.
+func formRowY(t *testing.T, e *ConfigEditor, key string) int {
+	t.Helper()
+	for i := range e.rows {
+		if e.rows[i].key == key {
+			return 1 + i - e.scroll
+		}
+	}
+	t.Fatalf("no row with key %q", key)
+	return 0
+}
+
+func paintedStyle(t *testing.T, out components.Surface, x, y int) xui.Style {
+	t.Helper()
+	require.Less(t, x, out.Size.Width)
+	require.Less(t, y, out.Size.Height)
+	return out.Buffer[y*out.Size.Width+x].Style
+}
+
+// TestFormColumnsKeepOneQuietTone locks the two-column color grammar: the label
+// column is one quiet tone, the value column carries the data, and a value the
+// file does not set drops back to the label tone instead of inventing a third
+// shade of gray.
+func TestFormColumnsKeepOneQuietTone(t *testing.T) {
+	// Only the name and the masked api key are set; every other field shows
+	// what the loader would supply instead.
+	doc := &project.ConfigDoc{Models: []project.ModelDoc{{Name: "model-a", APIKey: "key-a"}}}
+	e := newTestEditor(t, doc)
+	th := components.DarkTheme()
+	require.NotEqual(t, th.Muted.Fg, th.Foreground.Fg, "fixture needs a theme with two distinct tones")
+	// Park the cursor on the last row so the asserted rows are not selected.
+	focus(t, e, modelKey(0, fDeflt))
+	out := drawForm(t, e)
+	col := e.valueCol()
+	quiet := secondaryStyle(th)
+
+	nameY := formRowY(t, e, modelKey(0, fName))
+	label := paintedStyle(t, out, xModelField, nameY)
+	assert.Equal(t, quiet.Fg, label.Fg, "the label column keeps the quiet tone")
+	assert.False(t, label.Dim, "Dim ranges from soft to invisible; labels must not rely on it")
+	assert.Equal(t, th.Foreground.Fg, paintedStyle(t, out, col, nameY).Fg, "a set value is body text")
+
+	keyY := formRowY(t, e, modelKey(0, fKey))
+	assert.Equal(t, th.Foreground.Fg, paintedStyle(t, out, col, keyY).Fg,
+		"a masked key is set, so it reads as data rather than as an empty field")
+
+	// base_url and context_window are absent from the document.
+	for _, key := range []string{modelKey(0, fURL), modelKey(0, fCtx)} {
+		assert.Equal(t, quiet.Fg, paintedStyle(t, out, col, formRowY(t, e, key)).Fg,
+			"%s must not look set", key)
+	}
+}
+
+// TestSelectedRowIsOneStripe pins what a cursor used to do to the two columns: a
+// hole in the stripe behind a trailing hint, "not set" promoted into looking
+// exactly like a value, and emphasis moved onto the label column.
+func TestSelectedRowIsOneStripe(t *testing.T) {
+	doc := &project.ConfigDoc{Models: []project.ModelDoc{{Name: "model-a"}}}
+	e := newTestEditor(t, doc)
+	th := components.DarkTheme()
+
+	// base_url is unset, so the row paints a placeholder plus a trailing hint.
+	key := modelKey(0, fURL)
+	focus(t, e, key)
+	out := drawForm(t, e)
+	y := formRowY(t, e, key)
+
+	for x := 1; x < out.Size.Width-1; x++ {
+		assert.Equal(t, th.SelectionBg.Bg, paintedStyle(t, out, x, y).Bg,
+			"cell %d of the selected row must keep the stripe background", x)
+	}
+
+	label := paintedStyle(t, out, xModelField, y)
+	empty := paintedStyle(t, out, e.valueCol(), y)
+	assert.Equal(t, th.SelectionFg.Fg, label.Fg, "the selected label stays readable")
+	assert.False(t, label.Bold, "the label never outweighs the value")
+	assert.Equal(t, secondaryStyle(th).Fg, empty.Fg, "a selected empty field still reads as empty")
+	assert.False(t, empty.Dim, "the quiet tone stays flat, on the stripe too")
+
+	// A filled row puts the emphasis on the value, not on the label.
+	focus(t, e, modelKey(0, fName))
+	out = drawForm(t, e)
+	y = formRowY(t, e, modelKey(0, fName))
+	filledLabel := paintedStyle(t, out, xModelField, y)
+	filled := paintedStyle(t, out, e.valueCol(), y)
+	assert.Equal(t, th.SelectionFg.Fg, filled.Fg)
+	assert.True(t, filled.Bold, "the value column carries the emphasis")
+	assert.False(t, filledLabel.Bold)
 }
 
 func TestHumanTokens(t *testing.T) {
