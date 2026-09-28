@@ -259,7 +259,8 @@ line notes, then hand them to the agent without leaving the terminal.
 
 Slash-picker Enter inserts `/diff` plus a trailing space into the composer; submit to open. Inside the overlay:
 `s` side-by-side, `i` add/edit a note, `x` delete, `a` send notes to the agent,
-`?` help, `q` / `Esc` close. Notes persist under `.phi/review.json`.
+`?` help, `q` / `Esc` close. Notes live in the overlay's memory only — switching
+diffs drops them and nothing is written to disk.
 
 ## Code viewer
 

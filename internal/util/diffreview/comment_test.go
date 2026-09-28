@@ -1,40 +1,11 @@
 package diffreview
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestSaveLoadFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".phi", "review.json")
-	file := CommentFile{
-		Version: 1,
-		Comments: []CommentDraft{{
-			Path: "tui/app.go",
-			Body: "comment",
-			Line: 10,
-			Side: SideRight,
-		}},
-	}
-
-	require.NoError(t, SaveFile(path, file))
-	got, err := LoadFile(path)
-	require.NoError(t, err)
-	require.Len(t, got.Comments, 1)
-	assert.Equal(t, 1, got.Version)
-	assert.Equal(t, "comment", got.Comments[0].Body)
-	assert.Equal(t, 10, got.Comments[0].Line)
-}
-
-func TestLoadFileMissingReturnsEmptyFile(t *testing.T) {
-	file, err := LoadFile(filepath.Join(t.TempDir(), ".phi", "review.json"))
-	require.NoError(t, err)
-	assert.Equal(t, 1, file.Version)
-	assert.Empty(t, file.Comments)
-}
 
 func TestBuildCommentIndexResolvesSingleLineComment(t *testing.T) {
 	rows := []Row{
@@ -69,6 +40,7 @@ func TestBuildCommentIndexSkipsUnmatchedComments(t *testing.T) {
 		{Path: "other.go", Line: 1, Side: SideRight, Body: "wrong path"},
 		{Path: "main.go", Line: 2, Side: SideRight, Body: "wrong line"},
 	}
+
 	idx := BuildCommentIndex(rows, drafts)
 	assert.Empty(t, idx.TargetRows())
 }
@@ -109,9 +81,4 @@ func TestEmptyNote(t *testing.T) {
 	// name it — otherwise an empty overlay looks like a broken /diff.
 	assert.Contains(t, EmptyNote([]string{"HEAD~2"}), "No changes vs HEAD~2")
 	assert.Contains(t, EmptyNote([]string{"HEAD~2"}), "Untracked files are not shown")
-}
-
-func TestCommentPath(t *testing.T) {
-	assert.Equal(t, DefaultFilePath, CommentPath(""))
-	assert.Equal(t, filepath.Join("/tmp/proj", DefaultFilePath), CommentPath("/tmp/proj"))
 }
