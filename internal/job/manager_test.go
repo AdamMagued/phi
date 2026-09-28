@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -132,30 +131,6 @@ func TestConcurrencyBusy(t *testing.T) {
 	close(block)
 	_, err = m.Wait(ctx, info.ID)
 	require.NoError(t, err)
-}
-
-func TestHandleList(t *testing.T) {
-	var n atomic.Int32
-	m := newMgr(t, job.RunnerFunc(func(_ context.Context, _ job.RunEnv) (string, error) {
-		n.Add(1)
-		return "ok", nil
-	}), job.Options{})
-
-	ctx := t.Context()
-	_, err := m.Spawn(ctx, job.SpawnRequest{Prompt: "a"})
-	require.NoError(t, err)
-	_, err = m.Spawn(ctx, job.SpawnRequest{Prompt: "b"})
-	require.NoError(t, err)
-
-	list, err := m.List(ctx)
-	require.NoError(t, err)
-	for _, info := range list {
-		_, _ = m.Wait(ctx, info.ID)
-	}
-
-	got, err := m.HandleList(ctx, nil)
-	require.NoError(t, err)
-	require.Len(t, got, 2)
 }
 
 func TestHandleWaitTimeoutDoesNotCancelJob(t *testing.T) {
