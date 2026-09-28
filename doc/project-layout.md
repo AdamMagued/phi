@@ -28,7 +28,7 @@
 | `internal/tui/controller/` | Engine lifecycle, Bus/Msg, activity |
 | `internal/version/`      | Build-time `Version` (splash / `phi update`) |
 | `internal/util/`         | Shared helpers (diff, retry, SSE, file search, …) |
-| `internal/util/diffreview/` | Unified-diff parse/render, review comments, git load |
+| `internal/util/diffreview/` | Unified-diff parse/render, in-memory review notes, git load |
 | `internal/permission/`   | Permission policy and ask gate                 |
 | `internal/extension/`    | PXB extension discover/spawn/runner            |
 | `internal/mcp/`          | MCP config + stdio client + pool (meta-tool route) |

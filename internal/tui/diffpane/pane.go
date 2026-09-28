@@ -29,7 +29,6 @@ type Pane struct {
 
 	rows        []diffreview.Row
 	drafts      []diffreview.CommentDraft
-	commentPath string
 	highlighted map[int][]components.Span
 
 	cursor     int
@@ -53,7 +52,6 @@ type Pane struct {
 
 	help   bool
 	status string
-	dirty  bool
 
 	picker listpicker.Picker
 
@@ -103,14 +101,15 @@ func (p *Pane) OpenGit(cwd string, spec []string) {
 	if cwd != "" {
 		p.cwd = cwd
 	}
+	keepNotes := slices.Equal(p.spec, spec)
 	p.spec = append([]string(nil), spec...)
 	p.label = diffreview.LabelForSpec(spec)
 	text, err := diffreview.LoadGit(context.Background(), p.cwd, spec)
 	if err != nil {
-		p.openParsed("", err.Error())
+		p.openParsed("", err.Error(), keepNotes)
 		return
 	}
-	p.openParsed(text, "")
+	p.openParsed(text, "", keepNotes)
 }
 
 // OpenText shows a preloaded unified diff (tests / paste).
@@ -118,12 +117,15 @@ func (p *Pane) OpenText(input string, spec []string) {
 	if p == nil {
 		return
 	}
+	keepNotes := slices.Equal(p.spec, spec)
 	p.spec = append([]string(nil), spec...)
 	p.label = diffreview.LabelForSpec(spec)
-	p.openParsed(input, "")
+	p.openParsed(input, "", keepNotes)
 }
 
-func (p *Pane) openParsed(input, loadErr string) {
+// openParsed rebuilds rows for input. Notes are dropped unless keepNotes is set,
+// so a note never outlives the diff it was written against.
+func (p *Pane) openParsed(input, loadErr string, keepNotes bool) {
 	p.active = true
 	p.err = loadErr
 	p.help = false
@@ -132,11 +134,12 @@ func (p *Pane) openParsed(input, loadErr string) {
 	p.picker.Hide()
 	p.pendingG = false
 	p.pendingBracket = 0
-	p.commentPath = diffreview.CommentPath(p.cwd)
+	if !keepNotes {
+		p.drafts = nil
+	}
 
 	if loadErr != "" {
 		p.rows = nil
-		p.drafts = nil
 		p.highlighted = nil
 		p.cursor = 0
 		p.scroll = 0
@@ -151,13 +154,6 @@ func (p *Pane) openParsed(input, loadErr string) {
 		return
 	}
 	p.rows = doc.Rows()
-	file, err := diffreview.LoadFile(p.commentPath)
-	if err != nil {
-		p.status = "comments: " + err.Error()
-		p.drafts = nil
-	} else {
-		p.drafts = file.Comments
-	}
 	p.highlighted = diffview.HighlightRows(p.rows, p.theme)
 	p.cursor = 0
 	p.scroll = 0
@@ -170,13 +166,10 @@ func (p *Pane) openParsed(input, loadErr string) {
 	}
 }
 
-// Close hides the overlay, saving comments first.
+// Close hides the overlay.
 func (p *Pane) Close() {
 	if p == nil {
 		return
-	}
-	if p.dirty {
-		_ = p.saveComments()
 	}
 	p.active = false
 	p.help = false
@@ -457,34 +450,23 @@ func (p *Pane) submitComment() {
 	p.commentEdit = false
 	if body == "" {
 		p.removeDraft(p.commentTarget)
-		p.dirty = true
-		if err := p.saveComments(); err != nil {
-			p.toast(err.Error())
-		}
+		p.status = "note removed"
 		return
 	}
-	found := false
 	for i, d := range p.drafts {
 		if diffreview.SameTarget(d, p.commentTarget) || (d.ID != "" && d.ID == p.commentTarget.ID) {
 			p.drafts[i].Body = body
-			found = true
-			break
+			p.status = "note updated"
+			return
 		}
 	}
-	if !found {
-		d := p.commentTarget
-		d.Body = body
-		if d.ID == "" {
-			d.ID = strconv.FormatInt(time.Now().UnixNano(), 36)
-		}
-		p.drafts = append(p.drafts, d)
+	d := p.commentTarget
+	d.Body = body
+	if d.ID == "" {
+		d.ID = strconv.FormatInt(time.Now().UnixNano(), 36)
 	}
-	p.dirty = true
-	if err := p.saveComments(); err != nil {
-		p.toast(err.Error())
-		return
-	}
-	p.status = "note saved"
+	p.drafts = append(p.drafts, d)
+	p.status = "note added"
 }
 
 func (p *Pane) deleteNote() {
@@ -495,11 +477,6 @@ func (p *Pane) deleteNote() {
 		return
 	}
 	p.removeDraft(drafts[0])
-	p.dirty = true
-	if err := p.saveComments(); err != nil {
-		p.toast(err.Error())
-		return
-	}
 	p.status = "note deleted"
 }
 
@@ -512,17 +489,6 @@ func (p *Pane) removeDraft(target diffreview.CommentDraft) {
 		out = append(out, d)
 	}
 	p.drafts = out
-}
-
-func (p *Pane) saveComments() error {
-	if p.commentPath == "" {
-		return nil
-	}
-	err := diffreview.SaveFile(p.commentPath, diffreview.CommentFile{Version: 1, Comments: p.drafts})
-	if err == nil {
-		p.dirty = false
-	}
-	return err
 }
 
 func (p *Pane) sendToAgent() {

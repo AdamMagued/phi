@@ -1,7 +1,6 @@
 package diffpane
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/pulseaiclub/xui"
@@ -21,9 +20,8 @@ const sampleDiff = `diff --git a/main.go b/main.go
 `
 
 func TestPaneOpenCommentSearchAndSend(t *testing.T) {
-	dir := t.TempDir()
 	var submitted string
-	p := New(components.DefaultTheme(), dir, func(s string) { submitted = s }, nil, nil)
+	p := New(components.DefaultTheme(), t.TempDir(), func(s string) { submitted = s }, nil, nil)
 	p.OpenText(sampleDiff, nil)
 	require.True(t, p.Active())
 	require.NotEmpty(t, p.rows)
@@ -47,7 +45,6 @@ func TestPaneOpenCommentSearchAndSend(t *testing.T) {
 	p.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyEnter})
 	require.False(t, p.commentEdit)
 	require.Len(t, p.drafts, 1)
-	assert.FileExists(t, filepath.Join(dir, ".phi", "review.json"))
 
 	key('/')
 	for _, r := range "new" {
@@ -64,6 +61,36 @@ func TestPaneOpenCommentSearchAndSend(t *testing.T) {
 	assert.False(t, p.Active())
 	assert.Contains(t, submitted, "main.go")
 	assert.Contains(t, submitted, "please rename")
+}
+
+func TestPaneDropsNotesWhenDiffChanges(t *testing.T) {
+	p := New(components.DefaultTheme(), t.TempDir(), nil, nil, nil)
+	p.OpenText(sampleDiff, nil)
+
+	ctx := &components.EventContext{}
+	key := func(r rune) {
+		p.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: r})
+	}
+	for i := 0; i < 20 && (p.cursor >= len(p.rows) || p.rows[p.cursor].Code != "new"); i++ {
+		key('j')
+	}
+	require.Equal(t, "new", p.rows[p.cursor].Code)
+
+	key('i')
+	for _, r := range "stale note" {
+		key(r)
+	}
+	p.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyEnter})
+	require.Len(t, p.drafts, 1)
+
+	// Reopening the same spec keeps notes...
+	p.OpenText(sampleDiff, nil)
+	require.Len(t, p.drafts, 1)
+
+	// ...but switching specs must not carry them over, or `a` would resend
+	// comments the agent already answered.
+	p.OpenText(sampleDiff, []string{"staged"})
+	assert.Empty(t, p.drafts)
 }
 
 func TestPaneEscCloses(t *testing.T) {

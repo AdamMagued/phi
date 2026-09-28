@@ -1,17 +1,10 @@
 package diffreview
 
 import (
-	"encoding/json"
-	"errors"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 )
-
-// DefaultFilePath is the project-local comment store.
-const DefaultFilePath = ".phi/review.json"
 
 // Side identifies which side of a unified diff a comment anchors to.
 type Side string
@@ -23,70 +16,21 @@ const (
 
 // Anchor locates one visible diff line for a comment.
 type Anchor struct {
-	Path     string `json:"path"`
-	Line     int    `json:"line"`
-	Side     Side   `json:"side"`
-	CommitID string `json:"commit_id,omitempty"`
+	Path     string
+	Line     int
+	Side     Side
+	CommitID string
 }
 
-// CommentDraft is one review note on a single line.
+// CommentDraft is one review note on a single line. Drafts live only in the
+// pane's memory; nothing is written to disk.
 type CommentDraft struct {
-	ID       string `json:"id,omitempty"`
-	Path     string `json:"path"`
-	Body     string `json:"body"`
-	CommitID string `json:"commit_id,omitempty"`
-	Line     int    `json:"line"`
-	Side     Side   `json:"side"`
-}
-
-// CommentFile is the on-disk review store.
-type CommentFile struct {
-	Version  int            `json:"version"`
-	Comments []CommentDraft `json:"comments"`
-}
-
-// CommentPath returns cwd/.phi/review.json.
-func CommentPath(cwd string) string {
-	if cwd == "" {
-		return DefaultFilePath
-	}
-	return filepath.Join(cwd, DefaultFilePath)
-}
-
-// LoadFile reads comments; a missing file is an empty v1 store.
-func LoadFile(path string) (CommentFile, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return CommentFile{Version: 1}, nil
-	}
-	if err != nil {
-		return CommentFile{}, err
-	}
-
-	var file CommentFile
-	if err := json.Unmarshal(data, &file); err != nil {
-		return CommentFile{}, err
-	}
-	if file.Version == 0 {
-		file.Version = 1
-	}
-	return file, nil
-}
-
-// SaveFile writes comments as indented JSON.
-func SaveFile(path string, file CommentFile) error {
-	if file.Version == 0 {
-		file.Version = 1
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(file, "", "  ")
-	if err != nil {
-		return err
-	}
-	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o644) //nolint:gosec // G306: review notes are meant to be user-readable
+	ID       string
+	Path     string
+	Body     string
+	CommitID string
+	Line     int
+	Side     Side
 }
 
 // CommentIndex maps visible drafts to the rows that render them.
