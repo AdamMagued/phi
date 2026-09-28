@@ -12,9 +12,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- `phi config` is now a full-screen terminal editor (`internal/tui/configui`)
+  instead of a loopback web page. The form edits the same keys with inline text
+  fields, choice pickers (model list, thinking level, api, permission mode),
+  tri-state toggles, and expandable bash allow/deny rule lists. Nothing is
+  written until a save, and the previous file is kept as `config.yaml.bak`.
+- The editable config schema moved to `internal/project` (`project.ConfigDoc`,
+  `ReadConfigDoc`, `Save`, `Validate`). The runtime parser and the editor now
+  share one definition instead of two hand-kept copies, and empty `api_key` /
+  `base_url` values are omitted when a file is written.
+
 ### Deprecated
 
 ### Removed
+
+- The embedded HTML config page and its `/api/config` and `/api/models`
+  endpoints, along with the local HTTP server, origin checks, and browser
+  launch that served them.
 
 ### Fixed
 

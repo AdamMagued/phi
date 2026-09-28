@@ -136,9 +136,18 @@ TUI 给模型提供四个核心工具——`read`、`write`、`edit` 和 `bash`�
 ## 配置
 
 phi 读取 `~/.phi/config.yaml`（标准 YAML）。环境变量可覆盖配置，用于一次性运行。
-`phi config` 会在浏览器中打开一个 HTML 编辑器来编辑同一个文件。
+`phi config` 会在终端里打开全屏编辑器来编辑同一个文件；不保存就不落盘，保存前
+的旧文件会留作 `config.yaml.bak`。
 
-![phi config](assets/config.png)
+```
+phi config 按键
+  ↑↓ ←→      移动 / 切换取值            a   新增模型
+  ⏎          编辑，或打开选择列表       d   删除当前行
+  esc        收起列表 / 退出            f   从服务商拉取模型列表
+  ^s         保存                       s   保存     q  退出
+```
+
+留空表示「未设置」，也就是交给加载器填默认值；占位符显示的就是那个值。
 
 ```yaml
 # ~/.phi/config.yaml

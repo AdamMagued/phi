@@ -136,10 +136,20 @@ figures.
 ## Configuration
 
 phi reads `~/.phi/config.yaml` (standard YAML). Environment variables
-override it for one-off runs. `phi config` opens an HTML editor for the same
-file in your browser.
+override it for one-off runs. `phi config` opens a full-screen terminal editor
+for the same file — nothing is written until you save, and the previous file is
+kept as `config.yaml.bak`.
 
-![phi config](assets/config.png)
+```
+phi config keys
+  ↑↓ ←→      move / cycle a value        a   add a model
+  ⏎          edit or open a picker       d   delete the focused row
+  esc        close, or quit              f   fetch model ids from the provider
+  ^s         save                        s   save        q  quit
+```
+
+An empty field means "not set", i.e. the value the loader would fill in; the
+placeholder shows that value.
 
 ```yaml
 # ~/.phi/config.yaml
