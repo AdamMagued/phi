@@ -37,7 +37,7 @@ func buildRoot() *cli.Command {
 		Desc: "terminal coding agent",
 		Long: `phi                start the interactive TUI
 phi tui            start the interactive TUI
-phi config         open the HTML config editor (local web server)
+phi config         edit the meta config in a terminal UI
 phi update         install the latest release (see 'phi update --help')
 phi run -p "..."   run one agent loop headlessly (see 'phi run --help')
 phi sessions list  list persisted sessions for this directory

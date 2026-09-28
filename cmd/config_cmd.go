@@ -1,61 +1,63 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
-	"os/signal"
-	"time"
+
+	"github.com/pulseaiclub/xui"
 
 	cli "github.com/pulseaiclub/pli"
 
+	"github.com/pulseaiclub/phi/internal/components"
+	"github.com/pulseaiclub/phi/internal/components/app"
 	"github.com/pulseaiclub/phi/internal/project"
+	"github.com/pulseaiclub/phi/internal/tui/configui"
 )
 
 var configCommand = cli.Command{
 	Name: "config",
-	Desc: "open the HTML config editor (local web server)",
-	Long: "Open the HTML config editor (starts a local web server on 127.0.0.1).",
+	Desc: "edit the meta config in a terminal UI",
+	Long: `Edit the meta config in a full-screen terminal UI (models, skills,
+permissions, sub-agents). Changes are written only on save; the previous file
+is kept next to it as config.yaml.bak.`,
 	Run: func(_ []string, _ cli.Flags) error {
 		return runConfigEditor()
 	},
 }
 
-// runConfigEditor starts a local web server (loopback only) that edits
-// config.yaml in the browser.
+// runConfigEditor opens ~/.phi/config.yaml in the config form.
 func runConfigEditor() error {
 	proj := project.GetDefaultProject()
+	path := proj.Global().ConfigFile()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
-	var lc net.ListenConfig
-	ln, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
+	doc, err := project.ReadConfigDoc(path)
 	if err != nil {
 		return err
 	}
-	addr := ln.Addr().(*net.TCPAddr)
-	pageURL := fmt.Sprintf("http://127.0.0.1:%d/", addr.Port)
-	fmt.Fprintf(os.Stderr, "phi config: %s\n  config: %s\n  Ctrl-C to stop\n", pageURL, proj.Global().ConfigFile())
-	openBrowser(ctx, pageURL)
 
-	srv := &http.Server{
-		Handler:           &configHandler{configPath: proj.Global().ConfigFile()},
-		ReadHeaderTimeout: 10 * time.Second,
+	vx, err := xui.New(xui.Options{Mouse: true, BracketedPaste: true})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "phi: terminal UI:", err)
+		return exitCode(ExitError)
 	}
-
-	errc := make(chan error, 1)
-	go func() { errc <- srv.Serve(ln) }()
-	select {
-	case err := <-errc:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
+	defer func(vx *xui.XUI) {
+		if err := vx.Close(); err != nil {
+			fmt.Fprintln(os.Stderr, "phi: close terminal:", err)
 		}
-	case <-ctx.Done():
-		_ = srv.Close()
+	}(vx)
+
+	application := app.NewApp(vx)
+	ui := configui.New(
+		doc,
+		path,
+		proj.Global().SkillsDir(),
+		components.DefaultTheme(),
+		fetchModelIDs,
+		application.RequestRedraw,
+	)
+	if err := application.Run(ui); err != nil {
+		fmt.Fprintln(os.Stderr, "phi:", err)
+		return exitCode(ExitError)
 	}
 	return nil
 }
