@@ -18,6 +18,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `diff` pane notes no longer persist. `i` / `x` / `a` keep working, but drafts
+  live in the overlay's memory instead of `.phi/review.json`, and switching
+  diffs drops them. The store was per project and outlived the session, so a
+  later `a` re-sent comments the agent had already answered.
+
 - Compaction preserves the previous summary when the history bucket is empty,
   including mid-turn cuts that only summarize the current turn prefix. Inherited
   file-operation lists are refreshed once instead of accumulating duplicate blocks.
