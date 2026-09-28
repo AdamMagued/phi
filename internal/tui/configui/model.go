@@ -380,7 +380,10 @@ func (e *ConfigEditor) fieldRow(sp fieldSpec) row {
 		if raw == "" {
 			r.display, r.style = "not set", styleWarn
 		} else {
-			r.display, r.style = maskSecret(raw), styleMuted
+			// A key that is set is data like any other value: bright dots say
+			// "set", while the quiet tone is reserved for absent or inherited
+			// values.
+			r.display, r.style = maskSecret(raw), styleValue
 		}
 	case kindInt:
 		r.display, r.style = raw, styleValue
