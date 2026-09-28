@@ -1,7 +1,6 @@
 package project
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -36,9 +35,9 @@ type AgentsConfig struct {
 
 // AgentsRoleModels maps sub-agent roles to configured model names.
 type AgentsRoleModels struct {
-	Explore string `yaml:"explore"`
-	Review  string `yaml:"review"`
-	Worker  string `yaml:"worker"`
+	Explore string `yaml:"explore,omitempty"`
+	Review  string `yaml:"review,omitempty"`
+	Worker  string `yaml:"worker,omitempty"`
 }
 
 // Model returns the default model config with the skill path applied, ready
@@ -136,13 +135,13 @@ func parseConfigFile(path string) (*Config, error) {
 	// Pointer fields distinguish "key absent" from "zero value", so per-key
 	// defaults (and permission.DefaultPolicy) survive decoding and are only
 	// overridden by keys that are actually present.
-	var raw fileConfig
+	var raw ConfigDoc
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
 	for _, m := range raw.Models {
-		mc := modelEntryToConfig(m)
+		mc := modelDocToConfig(m)
 		if m.Default && cfg.DefaultModel == "" {
 			cfg.DefaultModel = mc.Name
 		}
@@ -169,7 +168,7 @@ func parseConfigFile(path string) (*Config, error) {
 	return cfg, nil
 }
 
-func modelEntryToConfig(m modelEntry) llm.ModelConfig {
+func modelDocToConfig(m ModelDoc) llm.ModelConfig {
 	cfg := llm.ModelConfig{Name: m.Name, APIKey: m.APIKey, BaseURL: m.BaseURL}
 	// A built-in preset supplies base_url / context_window / image_enabled / api
 	// when the entry omits them; the explicit fields below still win so
@@ -191,7 +190,7 @@ func modelEntryToConfig(m modelEntry) llm.ModelConfig {
 		cfg.Think = pc.Think
 	}
 	if m.API != "" {
-		cfg.API = m.API
+		cfg.API = llm.RouterType(m.API)
 	}
 	if m.ContextWindow != nil && *m.ContextWindow > 0 {
 		cfg.ContextWindow = *m.ContextWindow
@@ -202,8 +201,8 @@ func modelEntryToConfig(m modelEntry) llm.ModelConfig {
 	if m.ThinkEnabled != nil {
 		cfg.Think.Enabled = *m.ThinkEnabled
 	}
-	if m.ThinkLevel != nil && *m.ThinkLevel != "" {
-		mode := llm.ThinkMode(*m.ThinkLevel)
+	if m.ThinkLevel != "" {
+		mode := llm.ThinkMode(m.ThinkLevel)
 		cfg.Think.Mode = mode
 		cfg.Think.Enabled = mode != llm.Off
 	}
@@ -213,51 +212,11 @@ func modelEntryToConfig(m modelEntry) llm.ModelConfig {
 	return cfg
 }
 
-// fileConfig mirrors the YAML keys in ~/.phi/config.yaml.
-type fileConfig struct {
-	Models      []modelEntry  `yaml:"models"`
-	SkillPath   *string       `yaml:"skill_path"`
-	Permissions *permConfig   `yaml:"permissions"`
-	Agents      *agentsConfig `yaml:"agents"`
-}
-
-type agentsConfig struct {
-	// Enabled is a pointer so omitting the key keeps the default (on).
-	Enabled *bool             `yaml:"enabled"`
-	Models  *AgentsRoleModels `yaml:"models"`
-}
-
-type modelEntry struct {
-	Name          string         `yaml:"name"`
-	APIKey        string         `yaml:"api_key"`
-	BaseURL       string         `yaml:"base_url"`
-	ContextWindow *int           `yaml:"context_window"`
-	ImageEnabled  *bool          `yaml:"image_enabled"`
-	API           llm.RouterType `yaml:"api"`
-	Default       bool           `yaml:"default"`
-	ThinkEnabled  *bool          `yaml:"think_enabled"`
-	ThinkLevel    *string        `yaml:"think_level"`
-}
-
-type permConfig struct {
-	Mode                permission.Mode `yaml:"mode"`
-	WorkspaceOnlyWrites *bool           `yaml:"workspace_only_writes"`
-	AskTimeoutSec       *int            `yaml:"ask_timeout_sec"`
-	DangerouslyAllowAll *bool           `yaml:"dangerously_allow_all"`
-	Bash                *bashConfig     `yaml:"bash"`
-}
-
-type bashConfig struct {
-	Default *string     `yaml:"default"`
-	Allow   *stringList `yaml:"allow"`
-	Deny    *stringList `yaml:"deny"`
-}
-
 // applyPermissions merges the file's permissions block over DefaultPolicy.
 // An explicitly set list (even an empty one) replaces the default list.
-func applyPermissions(p *permission.Policy, raw *permConfig) {
+func applyPermissions(p *permission.Policy, raw *PermDoc) {
 	if raw.Mode != "" {
-		p.Mode = raw.Mode
+		p.Mode = permission.Mode(raw.Mode)
 	}
 	if raw.WorkspaceOnlyWrites != nil {
 		p.WorkspaceOnlyWrites = *raw.WorkspaceOnlyWrites
@@ -269,8 +228,8 @@ func applyPermissions(p *permission.Policy, raw *permConfig) {
 		p.DangerouslyAllowAll = *raw.DangerouslyAllowAll
 	}
 	if b := raw.Bash; b != nil {
-		if b.Default != nil {
-			p.BashDefault = parseDecision(*b.Default, p.BashDefault)
+		if b.Default != "" {
+			p.BashDefault = parseDecision(b.Default, p.BashDefault)
 		}
 		if b.Allow != nil {
 			p.BashAllow = *b.Allow
@@ -279,26 +238,6 @@ func applyPermissions(p *permission.Policy, raw *permConfig) {
 			p.BashDeny = *b.Deny
 		}
 	}
-}
-
-// stringList accepts either a single YAML scalar or a sequence, so both
-// `allow: "go test ./..."` and the block list form in the README work.
-type stringList []string
-
-func (s *stringList) UnmarshalYAML(node *yaml.Node) error {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		*s = stringList{node.Value}
-	case yaml.SequenceNode:
-		items := make(stringList, 0, len(node.Content))
-		for _, n := range node.Content {
-			items = append(items, n.Value)
-		}
-		*s = items
-	default:
-		return errors.New("expected a string or a list of strings")
-	}
-	return nil
 }
 
 func countIndent(line string) int {
