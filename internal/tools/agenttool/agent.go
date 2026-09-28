@@ -56,7 +56,6 @@ func AgentTools(deps AgentDeps) []tooldef.Tool {
 	}
 	return []tooldef.Tool{
 		agentSpawnTool(deps),
-		agentListTool(deps),
 		agentWaitTool(deps),
 		agentCancelTool(deps),
 	}
@@ -179,37 +178,6 @@ func roleDetail(role, rest string) string {
 		return r
 	}
 	return r + " · " + rest
-}
-
-func agentListTool(deps AgentDeps) tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "agent_list",
-			Description: `List sub-agent jobs (newest first). Each row includes status; filter client-side if needed.`,
-			Params: &llm.FunctionParameters{
-				Type:       "object",
-				Properties: llm.Object{},
-			},
-		},
-		Run: func(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
-			list, err := deps.Manager.HandleList(ctx, input)
-			if err != nil {
-				return tooldef.Result{}, err
-			}
-			rows := make([]map[string]any, 0, len(list))
-			for _, info := range list {
-				rows = append(rows, map[string]any{
-					"job_id":      info.ID,
-					"status":      info.Status,
-					"role":        info.Role,
-					"description": info.Description,
-					"dir":         info.Dir,
-				})
-			}
-			body := mustJSON(map[string]any{"jobs": rows, "count": len(rows)})
-			return tooldef.Result{Content: body, Detail: fmt.Sprintf("%d jobs", len(rows)), Output: body}, nil
-		},
-	}
 }
 
 func agentWaitTool(deps AgentDeps) tooldef.Tool {

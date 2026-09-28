@@ -305,29 +305,6 @@ func (m *Manager) setLiveMeta(meta Meta) {
 	}
 }
 
-// List returns all jobs known on disk, newest CreatedAt first.
-func (m *Manager) List(ctx context.Context) ([]Info, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	ids, err := m.store.listIDs()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Info, 0, len(ids))
-	for _, id := range ids {
-		info, err := m.loadInfo(id)
-		if err != nil {
-			continue
-		}
-		out = append(out, info)
-	}
-	slices.SortFunc(out, func(a, b Info) int {
-		return b.CreatedAt.Compare(a.CreatedAt)
-	})
-	return out, nil
-}
-
 // Get returns one job by id.
 func (m *Manager) Get(ctx context.Context, id string) (Info, error) {
 	if err := ctx.Err(); err != nil {

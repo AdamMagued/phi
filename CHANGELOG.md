@@ -16,6 +16,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Removed
 
+- `agent_list` tool: it returned every job on disk instead of the current
+  session's, duplicating `agent_wait` (which returns status + summary in one
+  call). The backing `Manager.List` / `HandleList` are gone too. (agent, job)
+
 ### Fixed
 
 ### Security
