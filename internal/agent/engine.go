@@ -158,7 +158,7 @@ func (engine *Engine) rebindTools() {
 }
 
 // systemPrompt assembles the system prompt: the built-in blocks plus whatever
-// the extension host contributes. It runs on every rebind, so an assembler that
+// the extension host contributes. It runs on every rebind, so a section that
 // fails must degrade to the core prompt rather than fail the engine.
 func (engine *Engine) systemPrompt() string {
 	maxConcurrent := 0
@@ -166,7 +166,7 @@ func (engine *Engine) systemPrompt() string {
 		maxConcurrent = engine.jobs.MaxConcurrent()
 	}
 	// omitExtTools is set for sub-agents, which register no extension tools; the
-	// scope tells assemblers not to advertise tools the model cannot call.
+	// scope tells sections not to advertise tools the model cannot call.
 	scope := ext.ScopeMain
 	if engine.omitExtTools {
 		scope = ext.ScopeSubagent

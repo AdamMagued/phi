@@ -57,10 +57,10 @@ type CommandHandler interface {
 }
 
 // PromptHandler assembles the agent system prompt from the registered
-// assemblers.
+// sections.
 type PromptHandler interface {
 	// AssemblePrompt returns the core blocks followed by each registered
-	// assembler's sections, in registration order.
+	// section, in registration order.
 	AssemblePrompt(ac AssembleContext, core func() []string) []string
 }
 
@@ -108,7 +108,7 @@ func (nopHost) PostTool(
 
 func (nopHost) CommandEntries() []ext.CommandEntry { return nil }
 
-// AssemblePrompt with no assembler registered is just the core prompt.
+// AssemblePrompt with no section registered is just the core prompt.
 func (nopHost) AssemblePrompt(_ AssembleContext, core func() []string) []string {
 	return core()
 }

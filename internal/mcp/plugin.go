@@ -29,8 +29,7 @@ func Plugin(pool *Pool) extension.Plugin {
 	api.RegisterTool(listTool(pool))
 	api.RegisterTool(inspectTool(pool))
 	api.RegisterTool(callTool(pool))
-
-	api.RegisterAssembler(ext.ScopeMain, promptSection(pool.ServerNames()))
+	api.RegisterPromptSection(ext.ScopeMain, mcpPromptBlock(pool.ServerNames()))
 
 	return extension.Plugin{API: api, Close: pool.Close}
 }
@@ -179,11 +178,11 @@ Prefer mcp_list then mcp_inspect before calling unfamiliar tools.`,
 	}
 }
 
-// promptSection renders the system-prompt block announcing the configured
+// mcpPromptBlock renders the system-prompt block announcing the configured
 // servers, or "" when there are none so the prompt stays clean. Server names
 // only: tool schemas stay out of the context and are discovered on demand
 // through mcp_list / mcp_inspect.
-func promptSection(serverNames []string) string {
+func mcpPromptBlock(serverNames []string) string {
 	servers := make([]string, 0, len(serverNames))
 	for _, name := range serverNames {
 		if name = strings.TrimSpace(name); name != "" {

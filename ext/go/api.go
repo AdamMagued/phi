@@ -75,14 +75,14 @@ func (a *API) RegisterCommand(name string, cmd Command) {
 	a.commands[name] = cmd
 }
 
-// RegisterAssembler adds a static system-prompt block, mirroring RegisterTool:
+// RegisterPromptSection adds a static system-prompt block, mirroring RegisterTool:
 // prompt blocks register the same way as tools. scope gates which engines see
 // body; an empty scope means all.
 //
 // Built-in plugins register in-process and their blocks take effect. Subprocess
 // (PXB) extensions cannot yet ship prompt blocks — the wire protocol has no
 // call for this — so the registration is local to their API only.
-func (a *API) RegisterAssembler(scope Scope, body string) {
+func (a *API) RegisterPromptSection(scope Scope, body string) {
 	if a == nil {
 		return
 	}

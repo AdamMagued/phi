@@ -376,23 +376,23 @@ A `Plugin` carries only what a subprocess cannot:
 
 | Field | Use |
 |-------|-----|
-| `API` | `ext.NewAPI()` with `RegisterTool` / `RegisterCommand` / `RegisterAssembler` / `On`. Optional; a zero `Plugin` is ignored |
+| `API` | `ext.NewAPI()` with `RegisterTool` / `RegisterCommand` / `RegisterPromptSection` / `On`. Optional; a zero `Plugin` is ignored |
 | `Close` | Released by `Runner.Close`, after the subprocesses are gone |
 
 ### Prompt assembly
 
-The system prompt is built from the core blocks (`internal/agent/prompt`) plus each API's `PromptSection` blocks (`ext/go/prompt.go`), in registration order. `API.RegisterAssembler` mirrors `API.RegisterTool`, so tools and prompt blocks register the same way:
+The system prompt is built from the core blocks (`internal/agent/prompt`) plus each API's `PromptSection` blocks (`ext/go/types.go`), in registration order. `API.RegisterPromptSection` mirrors `API.RegisterTool`, so tools and prompt blocks register the same way:
 
 ```go
 api := ext.NewAPI()
 api.RegisterTool(myTool)
-api.RegisterAssembler(ext.ScopeMain, "# my block")
+api.RegisterPromptSection(ext.ScopeMain, "# my block")
 runner.AddPlugin(extension.Plugin{API: api, Close: pool.Close})
 ```
 
 A `PromptSection` is data, not a closure: prompt assembly runs at engine construction time with no request context, so a block cannot depend on per-call state. `Scope` gates which engines see the block — `ScopeMain` hides it from sub-agents, which run without extension tools, so advertising them sends the model after a tool it cannot call; an empty scope means every engine. Blank bodies are dropped and the rest trimmed.
 
-Subprocess (PXB) extensions cannot contribute prompt blocks — the wire protocol has no call for this — so `RegisterAssembler` takes effect only for built-in plugins today.
+Subprocess (PXB) extensions cannot contribute prompt blocks — the wire protocol has no call for this — so `RegisterPromptSection` takes effect only for built-in plugins today.
 
 Built-in plugins are also exempt from the subprocess rule that a plugin may only deny: they run in-process and on the fast path. Keep the permission gate in the host regardless.
 

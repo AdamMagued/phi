@@ -234,7 +234,7 @@ func (r *Runner) ExtensionTools() []tools.Tool { return r.host().ExtensionTools(
 
 func (r *Runner) CommandEntries() []ext.CommandEntry { return r.host().CommandEntries() }
 
-// AssemblePrompt forwards to the in-process bus: prompt assemblers are built-in
+// AssemblePrompt forwards to the in-process bus: prompt sections are built-in
 // plugins only, so a Runner with no bus contributes the core prompt alone.
 func (r *Runner) AssemblePrompt(ac AssembleContext, core func() []string) []string {
 	if r == nil || r.bus == nil {

@@ -14,7 +14,7 @@ import ext "github.com/pulseaiclub/phi/ext/go"
 type Plugin struct {
 	// API carries the tools, commands and prompt sections the plugin registers
 	// via [ext.API.RegisterTool], [ext.API.RegisterCommand] and
-	// [ext.API.RegisterAssembler]. Optional: a plugin with none is inert.
+	// [ext.API.RegisterPromptSection]. Optional: a plugin with none is inert.
 	API *ext.API
 	// Close releases plugin-owned resources. [Runner.Close] calls it after the
 	// subprocesses are gone. Nil means the plugin owns nothing.

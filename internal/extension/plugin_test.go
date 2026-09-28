@@ -28,7 +28,7 @@ func fakePlugin(t *testing.T, closed *bool) extension.Plugin {
 		Handler: func(string, *ext.Context) error { return nil },
 	})
 
-	api.RegisterAssembler("", "# fake\n\nbuilt in")
+	api.RegisterPromptSection("", "# fake\n\nbuilt in")
 	return extension.Plugin{
 		API: api,
 		Close: func() error {
@@ -76,13 +76,13 @@ func TestAddPluginReachesTheHostLikeASubprocessExtension(t *testing.T) {
 
 // Registered order is prompt order: the first plugin's block sits closest to
 // the core prompt, so adding a plugin later never reshuffles what came before.
-func TestAssemblersRunInRegistrationOrder(t *testing.T) {
+func TestSectionsRunInRegistrationOrder(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 
 	for _, section := range []string{"# one", "# two"} {
 		api := ext.NewAPI()
-		api.RegisterAssembler("", section)
+		api.RegisterPromptSection("", section)
 		runner.AddPlugin(extension.Plugin{API: api})
 	}
 
@@ -91,14 +91,14 @@ func TestAssemblersRunInRegistrationOrder(t *testing.T) {
 
 // Blank blocks are dropped and the rest trimmed, so a plugin that builds its
 // block from possibly-empty config cannot leave ragged gaps in the prompt.
-func TestAssemblerDropsBlanksAndTrims(t *testing.T) {
+func TestSectionDropsBlanksAndTrims(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 
 	api := ext.NewAPI()
-	api.RegisterAssembler("", "  ")
-	api.RegisterAssembler("", "")
-	api.RegisterAssembler("", "  # kept  ")
+	api.RegisterPromptSection("", "  ")
+	api.RegisterPromptSection("", "")
+	api.RegisterPromptSection("", "  # kept  ")
 	runner.AddPlugin(extension.Plugin{API: api})
 
 	assert.Equal(t, []string{"core", "# kept"}, assemble(t, runner, "core"))
@@ -107,13 +107,13 @@ func TestAssemblerDropsBlanksAndTrims(t *testing.T) {
 // A section's Scope gates which engines see it: a sub-agent registers no
 // extension tools, so a block announcing them must be skippable. This is the
 // hook that keeps the prompt honest about what the model can actually call.
-func TestAssemblerFiltersByScope(t *testing.T) {
+func TestSectionFiltersByScope(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 
 	api := ext.NewAPI()
-	api.RegisterAssembler(ext.ScopeMain, "main-only")
-	api.RegisterAssembler(ext.ScopeSubagent, "sub-only")
+	api.RegisterPromptSection(ext.ScopeMain, "main-only")
+	api.RegisterPromptSection(ext.ScopeSubagent, "sub-only")
 	runner.AddPlugin(extension.Plugin{API: api})
 
 	core := func() []string { return []string{"core"} }
@@ -143,7 +143,7 @@ func TestSectionsOnlyPluginAssembles(t *testing.T) {
 	t.Cleanup(runner.Close)
 
 	api := ext.NewAPI()
-	api.RegisterAssembler("", "# text only")
+	api.RegisterPromptSection("", "# text only")
 	runner.AddPlugin(extension.Plugin{API: api})
 
 	assert.Nil(t, runner.ExtensionTools())

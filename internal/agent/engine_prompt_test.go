@@ -20,7 +20,7 @@ func probeRunner(t *testing.T, text string) *extension.Runner {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 	api := ext.NewAPI()
-	api.RegisterAssembler(ext.ScopeMain, text)
+	api.RegisterPromptSection(ext.ScopeMain, text)
 	runner.AddPlugin(extension.Plugin{API: api})
 	return runner
 }
