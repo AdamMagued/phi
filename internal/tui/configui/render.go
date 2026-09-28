@@ -2,6 +2,7 @@ package configui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/pulseaiclub/xui"
@@ -398,12 +399,14 @@ func (e *ConfigEditor) drawConfirm(w, h int, method xui.WidthMethod) components.
 	}
 }
 
-// displayPath shortens the home directory to "~" for the border label.
+// displayPath shortens the home directory to "~" for the border label. Slashes
+// are normalized so Windows shows "~/.phi/config.yaml" instead of "~\.phi\config.yaml".
 func displayPath(path string) string {
+	display := filepath.ToSlash(path)
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		if rest, ok := strings.CutPrefix(path, home); ok {
+		if rest, ok := strings.CutPrefix(display, filepath.ToSlash(home)); ok {
 			return "~" + rest
 		}
 	}
-	return path
+	return display
 }
