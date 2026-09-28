@@ -30,6 +30,8 @@ A lean, high-performance terminal coding agent harness in Go — a sibling to Pi
 
 ![phi diff review](assets/diff.png)
 
+![phi config viewer](assets/phi-config.png)
+
 - [Docs](https://pulseaiclub.github.io/docs/getting-started/)
 - [Quick start](#quick-start)
 - [Footprint](#footprint)
