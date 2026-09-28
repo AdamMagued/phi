@@ -12,6 +12,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.28.0] - 2026-09-28
+
+### Added
+
+### Changed
+
 - `phi config` is now a full-screen terminal editor (`internal/tui/configui`)
   instead of a loopback web page. The form edits the same keys with inline text
   fields, choice pickers (model list, thinking level, api, permission mode),
@@ -786,7 +800,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.27.6...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.0
 [0.27.6]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.6
 [0.27.5]: https://github.com/pulseaiclub/phi/compare/v0.27.4...v0.27.5
 [0.27.4]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.4
