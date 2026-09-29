@@ -2,6 +2,8 @@ package compaction
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -20,6 +22,12 @@ type captureCompactor struct {
 	maxTokens []int
 	text      string
 	truncated bool
+	// textFor picks the canned answer per prompt, so tests can hand a blank
+	// answer to one mid-turn bucket and a valid one to the other. The two
+	// buckets run in parallel with no fixed order, so a single fixed text
+	// cannot express that. Nil keeps the fixed text (with the empty-text
+	// "SUMMARY" default) so older tests stay untouched.
+	textFor func(prompt string) string
 }
 
 func (c *captureCompactor) Compact(_ context.Context, req llm.CompactRequest) (llm.CompactResult, error) {
@@ -30,6 +38,9 @@ func (c *captureCompactor) Compact(_ context.Context, req llm.CompactRequest) (l
 	text := c.text
 	if text == "" {
 		text = "SUMMARY"
+	}
+	if c.textFor != nil {
+		text = c.textFor(req.Prompt)
 	}
 	return llm.CompactResult{Text: text, Truncated: c.truncated}, nil
 }
@@ -93,6 +104,42 @@ func TestGenerateTurnPrefixSummary_Truncated_ReturnsError(t *testing.T) {
 	assert.Equal(t, "Turn prefix summarization failed: generation hit the token cap, summary incomplete", err.Error())
 }
 
+// A finished generation that carries no text summarizes nothing. Persisting it
+// as the checkpoint would replace the history with blank, so every summary
+// path must fail on it.
+func TestGenerateSummary_BlankText_ReturnsError(t *testing.T) {
+	for _, previousSummary := range []string{"", "earlier summary"} {
+		for _, blank := range []string{"", "   ", "\n\t\n"} {
+			name := fmt.Sprintf("previous=%q blank=%q", previousSummary, blank)
+			t.Run(name, func(t *testing.T) {
+				c := &captureCompactor{textFor: func(string) string { return blank }}
+
+				_, err := generateSummary(
+					t.Context(),
+					c,
+					[]llm.Message{{Role: llm.RoleUser, Content: "hi"}},
+					previousSummary,
+					2048,
+				)
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "Summarization failed: model returned an empty summary")
+			})
+		}
+	}
+}
+
+func TestGenerateTurnPrefixSummary_BlankText_ReturnsError(t *testing.T) {
+	for _, blank := range []string{"", "   ", "\n\t\n"} {
+		c := &captureCompactor{textFor: func(string) string { return blank }}
+
+		_, err := generateTurnPrefixSummary(t.Context(), c, []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, 1024)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Turn prefix summarization failed: model returned an empty summary")
+	}
+}
+
 func TestSummarizationCap(t *testing.T) {
 	// Default reserveTokens is 16384: 0.8 for history, 0.5 for the turn prefix.
 	assert.Equal(t, 13107, summarizationCap(16384, historySummaryRatio))
@@ -114,6 +161,55 @@ func TestSummarizeMidTurnCut_CapsEachSummary(t *testing.T) {
 	assert.Contains(t, summary, "SUMMARY")
 	assert.Contains(t, summary, "Turn Context (mid-turn cut)")
 	assert.ElementsMatch(t, []int{13107, 8192}, c.maxTokens)
+}
+
+// A blank answer from either mid-turn bucket must fail the whole cut. The file
+// list is appended after the summaries, so it must never turn a blank bucket
+// into a checkpoint that kept only file paths.
+func TestCompact_MidTurnCut_BlankBucketSummary_ReturnsError(t *testing.T) {
+	textFor := func(blankBucket, blank string) func(string) string {
+		return func(prompt string) string {
+			if strings.Contains(prompt, compactionTurnPrefixPrompt) {
+				if blankBucket == "turn-prefix" {
+					return blank
+				}
+				return "Turn summary."
+			}
+			if blankBucket == "history" {
+				return blank
+			}
+			return "History summary."
+		}
+	}
+
+	for _, blankBucket := range []string{"history", "turn-prefix"} {
+		for _, blank := range []string{"", "   ", "\n\t\n"} {
+			for _, withFileOps := range []bool{false, true} {
+				name := fmt.Sprintf("%s blank=%q fileOps=%v", blankBucket, blank, withFileOps)
+				t.Run(name, func(t *testing.T) {
+					prep := CompactionPreparation{
+						IsMidTurnCut:        true,
+						MessagesToSummarize: []llm.Message{{Role: llm.RoleUser, Content: "older history"}},
+						TurnPrefixMessages:  []llm.Message{{Role: llm.RoleUser, Content: "turn prefix"}},
+						ReserveTokens:       16384,
+					}
+					if withFileOps {
+						prep.FileOps = FileOperation{read: []string{"main.go"}}
+					}
+					c := &captureCompactor{textFor: textFor(blankBucket, blank)}
+
+					_, err := Compact(t.Context(), prep, c)
+
+					require.Error(t, err)
+					want := "Summarization"
+					if blankBucket == "turn-prefix" {
+						want = "Turn prefix summarization"
+					}
+					assert.Contains(t, err.Error(), want+" failed: model returned an empty summary")
+				})
+			}
+		}
+	}
 }
 
 func TestCompact_EmptyHistory(t *testing.T) {
@@ -150,4 +246,24 @@ func TestCompact_EmptyHistory(t *testing.T) {
 			})
 		}
 	}
+}
+
+// A previous summary that was nothing but the file list strips down to blank.
+// The placeholder makes the absence of history text explicit instead of
+// persisting another file-list-only checkpoint, without a model call.
+func TestCompact_EmptyHistory_BlankStrippedPreviousSummary(t *testing.T) {
+	fileList := formatFileOperations([]string{"a.go"}, nil)
+	c := &captureCompactor{}
+
+	prep := CompactionPreparation{
+		PreviousSummary:        fileList,
+		PreviousFileOperations: fileList,
+		FileOps:                FileOperation{read: []string{"b.go"}},
+	}
+
+	comp, err := Compact(t.Context(), prep, c)
+
+	require.NoError(t, err)
+	assert.Equal(t, "No prior history."+formatFileOperations([]string{"b.go"}, nil), comp.Summary)
+	assert.Empty(t, c.prompts, "a blank stripped summary must not trigger a model request")
 }
