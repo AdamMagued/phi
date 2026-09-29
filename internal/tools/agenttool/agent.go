@@ -183,7 +183,7 @@ func roleDetail(role, rest string) string {
 
 func agentWaitTool(deps AgentDeps) tooldef.Tool {
 	return tooldef.Tool{
-		Summary: "collect a sub-agent result",
+		Summary: "wait for a sub-agent job's summary",
 		Definition: llm.ToolDefinition{
 			Name: "agent_wait",
 			Description: `Block until a sub-agent job reaches a terminal status and return its result.md summary.
