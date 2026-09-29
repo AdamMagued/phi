@@ -26,6 +26,7 @@ func Tools(pool *mcp.Pool) []tooldef.Tool {
 
 func listTool(pool *mcp.Pool) tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "list tools on an MCP server",
 		Definition: llm.ToolDefinition{
 			Name: "mcp_list",
 			Description: `List MCP tool names on one server (compact text, not full JSON schemas).
@@ -75,6 +76,7 @@ Returns space-separated tool names. Schemas never enter the model context — us
 
 func inspectTool(pool *mcp.Pool) tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "show one MCP tool's params",
 		Definition: llm.ToolDefinition{
 			Name: "mcp_inspect",
 			Description: `Show a compact parameter summary for one MCP tool (slim text).
@@ -123,6 +125,7 @@ Use after mcp_list to learn required args before mcp_call.`,
 
 func callTool(pool *mcp.Pool) tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "call an MCP tool",
 		Definition: llm.ToolDefinition{
 			Name: "mcp_call",
 			Description: `Call one MCP tool on a configured server.

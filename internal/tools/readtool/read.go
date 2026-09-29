@@ -32,6 +32,7 @@ Output body is capped at %d lines and %d KiB per call.`,
 // ReadTool returns the read tool definition + handler.
 func ReadTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "read one file (known path)",
 		Definition: llm.ToolDefinition{
 			Name:        "read",
 			Description: readDescription,

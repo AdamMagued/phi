@@ -63,6 +63,7 @@ func AgentTools(deps AgentDeps) []tooldef.Tool {
 
 func agentSpawnTool(deps AgentDeps) tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "run a scoped job in a sub-agent",
 		Definition: llm.ToolDefinition{
 			Name: "agent_spawn",
 			Description: fmt.Sprintf(agentLaunchGuidance+`
@@ -182,6 +183,7 @@ func roleDetail(role, rest string) string {
 
 func agentWaitTool(deps AgentDeps) tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "collect a sub-agent result",
 		Definition: llm.ToolDefinition{
 			Name: "agent_wait",
 			Description: `Block until a sub-agent job reaches a terminal status and return its result.md summary.
@@ -235,6 +237,7 @@ Use agent_cancel to stop a running job.`,
 
 func agentCancelTool(deps AgentDeps) tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "stop a sub-agent job",
 		Definition: llm.ToolDefinition{
 			Name:        "agent_cancel",
 			Description: `Cancel a running or starting sub-agent job and wait until it stops.`,

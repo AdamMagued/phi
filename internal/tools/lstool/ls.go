@@ -30,6 +30,7 @@ const (
 // LsTool returns the ls tool definition + handler.
 func LsTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "list a directory",
 		Definition: llm.ToolDefinition{
 			Name:        "ls",
 			Description: lsDescription,

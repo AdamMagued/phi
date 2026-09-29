@@ -68,27 +68,31 @@ var (
 )
 
 // DefaultTools returns the built-in agent tool set.
+//
+// The order is the order the model sees in the request: exploration tools
+// first, editing tools next, bash last so a general-purpose shell is not the
+// default reach for listing, searching, or reading files.
 func DefaultTools() []Tool {
 	return []Tool{
-		bashtool.BashTool(),
 		readtool.ReadTool(),
-		writetool.WriteTool(),
 		greptool.GrepTool(),
+		findtool.FindTool(),
 		lstool.LsTool(),
 		writetool.EditTool(),
-		findtool.FindTool(),
+		writetool.WriteTool(),
+		bashtool.BashTool(),
 	}
 }
 
-// ReadonlyTools returns exploration tools without write/edit.
+// ReadonlyTools returns exploration tools without write/edit, bash last.
 // Bash remains registered; pair with ModeReadonly (and typically
 // ChildPolicy) so write/edit stay denied while non-deny bash is allowed.
 func ReadonlyTools() []Tool {
 	return []Tool{
-		bashtool.BashTool(),
 		readtool.ReadTool(),
 		greptool.GrepTool(),
-		lstool.LsTool(),
 		findtool.FindTool(),
+		lstool.LsTool(),
+		bashtool.BashTool(),
 	}
 }

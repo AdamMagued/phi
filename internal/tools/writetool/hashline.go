@@ -42,6 +42,7 @@ Examples:
 // EditTool returns the edit (hashline) tool definition + handler.
 func EditTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "change an existing file",
 		Definition: llm.ToolDefinition{
 			Name:        "edit",
 			Description: editDescription,

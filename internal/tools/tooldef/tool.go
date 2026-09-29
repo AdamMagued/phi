@@ -26,6 +26,9 @@ type Handler func(ctx context.Context, input json.RawMessage) (Result, error)
 type Tool struct {
 	Definition llm.ToolDefinition
 	Run        Handler
+	// Summary is a one-line purpose shown in the system-prompt tool roster.
+	// A tool without one is omitted from the roster (its schema still ships).
+	Summary string
 	// DetailFromArgs extracts a one-line detail for the UI before execution.
 	DetailFromArgs func(input json.RawMessage) string
 }

@@ -66,7 +66,8 @@ func TestRunOptionsFromFlagsEqualsForms(t *testing.T) {
 	assert.Equal(t, 1500*time.Millisecond, opts.timeout)
 	assert.Equal(t, "/tmp/sess", opts.sessionDir)
 	assert.True(t, opts.continueLast)
-	assert.Equal(t, []string{"bash", "write"}, toolNames(opts.builtinTools))
+	// Selection keeps the built-in pool order (write before bash), not the flag order.
+	assert.Equal(t, []string{"write", "bash"}, toolNames(opts.builtinTools))
 }
 
 func TestRunCommandParseErrors(t *testing.T) {
@@ -128,7 +129,7 @@ func TestSelectBuiltinToolsErrorListsAvailableNames(t *testing.T) {
 	_, err := selectBuiltinTools("read,nope,missing")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, `unknown built-in tools "missing", "nope"`)
-	assert.ErrorContains(t, err, "available: bash, read, write, grep, ls, edit, find")
+	assert.ErrorContains(t, err, "available: read, grep, find, ls, edit, write, bash")
 }
 
 func TestSelectedBuiltinToolsStillAppendExternalTools(t *testing.T) {

@@ -12,6 +12,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Built-in tools are declared read-first and bash-last (`internal/tools/tools.go`).
+  The request used to open with `bash`, which made a general-purpose shell the
+  model's default reach for listing and searching files.
+- The system prompt renders a tool roster from the live tool set and routes each
+  kind of file work to its tool (`internal/agent/prompt`). Tools declare their own
+  one-line purpose (`tooldef.Tool.Summary`), so the roster cannot drift from what
+  the request offers.
+- `bash`, `grep`, and `find` describe what they are for instead of comparing
+  themselves to each other. The `bash` description no longer spells out
+  `cat`/`head`/`ls`/`grep`/`rg` as commands to avoid.
+
 ### Deprecated
 
 ### Removed

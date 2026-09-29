@@ -46,7 +46,7 @@ var grepDescription = fmt.Sprintf(
 Each matched file is preceded by an @file path#TAG header (4 hex chars for edit.hash).
 Use the glob parameter to limit files (e.g. *_test.go); that is not the find tool.
 Results are capped at %d matches and %dKB; increase limit or refine the pattern if truncated.
-Use read for full untruncated line text. Prefer this over bash grep/rg.`,
+Use read for full untruncated line text.`,
 	grepDefaultLimit,
 	grepDefaultMaxBytes/1024,
 )
@@ -54,6 +54,7 @@ Use read for full untruncated line text. Prefer this over bash grep/rg.`,
 // GrepTool returns the grep (search) tool definition + handler.
 func GrepTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "search file contents",
 		Definition: llm.ToolDefinition{
 			Name:        "grep",
 			Description: grepDescription,

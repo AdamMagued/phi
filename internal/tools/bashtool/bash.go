@@ -17,15 +17,15 @@ const (
 	bashDefaultTimeout = 300
 )
 
-var bashDescription = `Run a shell command and return combined stdout/stderr.
-
-Use for build, test, git, and OS tasks that read/ls/find/grep/edit/write cannot
-do. Do not use for cat, head, tail, ls(1), find(1), grep, or rg — those have dedicated
-tools. Large output is truncated with the retained output written to a temp file.`
+var bashDescription = "Run a shell command and return combined stdout/stderr.\n\n" +
+	"Use for builds, tests, git, and OS tasks. Reading, searching, and listing files belong to the\n" +
+	"dedicated tools: `read` for a known path, `grep` for contents, `find` for filenames, `ls` for a\n" +
+	"directory. Large output is truncated with the retained part written to a temp file."
 
 // BashTool returns the bash tool definition + handler.
 func BashTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "builds, tests, git, OS tasks",
 		Definition: llm.ToolDefinition{
 			Name:        "bash",
 			Description: bashDescription,

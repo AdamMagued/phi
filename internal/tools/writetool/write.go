@@ -19,6 +19,7 @@ var writeDescription = `Write content to a file. Creates the file if it does not
 // WriteTool returns the write tool definition + handler.
 func WriteTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "create or overwrite a file",
 		Definition: llm.ToolDefinition{
 			Name:        "write",
 			Description: writeDescription,

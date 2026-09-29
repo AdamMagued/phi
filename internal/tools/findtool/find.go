@@ -25,14 +25,14 @@ var findDescription = fmt.Sprintf(
 	`Find files matching a glob pattern and return cwd-relative paths.
 
 Uses fd (respects .gitignore). Use path to restrict the search directory.
-Supports * / ** / ? / [abc] / {a,b}. Returns at most %d results.
-Prefer this over bash find/ls for filename search.`,
+Supports * / ** / ? / [abc] / {a,b}. Returns at most %d results.`,
 	defaultFindLimit,
 )
 
 // FindTool returns the find tool definition + handler.
 func FindTool() tooldef.Tool {
 	return tooldef.Tool{
+		Summary: "find files by glob",
 		Definition: llm.ToolDefinition{
 			Name:        "find",
 			Description: findDescription,

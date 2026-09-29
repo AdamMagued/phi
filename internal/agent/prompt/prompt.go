@@ -29,7 +29,15 @@ type systemData struct {
 	Cwd           string
 	Workspace     string
 	AgentsEnabled bool
-	MaxConcurrent int // sub-agent concurrency cap (0 when agents disabled)
+	MaxConcurrent int    // sub-agent concurrency cap (0 when agents disabled)
+	ToolRoster    string // one line per registered tool, or "- (none)"
+}
+
+// Tool is one entry in the prompt's tool roster. Tools registered without a
+// Summary are left out of the roster; their schema still reaches the model.
+type Tool struct {
+	Name    string
+	Summary string
 }
 
 type skillsData struct {
@@ -43,13 +51,16 @@ type mcpData struct {
 // Build assembles the system prompt.
 // agentsEnabled must match whether agent_* tools are registered.
 // mcpServers are configured server names only (no tool schemas).
-func Build(skillPath string, agentsEnabled bool, maxConcurrent int, mcpServers []string) string {
+// toolList is the registered tool set; pass nil when unknown and the roster
+// renders as "- (none)".
+func Build(skillPath string, agentsEnabled bool, maxConcurrent int, mcpServers []string, toolList []Tool) string {
 	var buf strings.Builder
 	data := systemData{
 		Cwd:           currentDir(),
 		Workspace:     workspaceDir(),
 		AgentsEnabled: agentsEnabled,
 		MaxConcurrent: maxConcurrent,
+		ToolRoster:    formatToolRoster(toolList),
 	}
 	if err := systemPrompt.Execute(&buf, data); err != nil {
 		panic(fmt.Sprintf("system prompt: %v", err))
@@ -65,6 +76,25 @@ func Build(skillPath string, agentsEnabled bool, maxConcurrent int, mcpServers [
 		parts = append(parts, mcpBlock)
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// formatToolRoster renders the "# Tools" menu: one line per tool that declares
+// a Summary. The roster is generated from the live tool set so it cannot drift
+// from what the request actually offers.
+func formatToolRoster(toolList []Tool) string {
+	lines := make([]string, 0, len(toolList))
+	for _, tool := range toolList {
+		name := strings.TrimSpace(tool.Name)
+		summary := strings.TrimSpace(tool.Summary)
+		if name == "" || summary == "" {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("- `%s` — %s", name, summary))
+	}
+	if len(lines) == 0 {
+		return "- (none)"
+	}
+	return strings.Join(lines, "\n")
 }
 
 func execTmpl(t *template.Template, data any) string {

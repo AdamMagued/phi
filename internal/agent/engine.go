@@ -85,7 +85,12 @@ func NewEngine(model llm.ModelConfig, sess *Session, opts ...EngineOption) (*Eng
 	engine.extensions.SetBaseTools(engine.buildCoreTools(engine.baseTools))
 	engine.extensions.SetMeta(engine.SessionID(), engine.SessionCwd())
 	toolList := engine.buildToolList(engine.baseTools)
-	engine.client = llmclient.NewClient(model, engine.hooks, tools.Definitions(toolList), engine.systemPrompt())
+	engine.client = llmclient.NewClient(
+		model,
+		engine.hooks,
+		tools.Definitions(toolList),
+		engine.systemPrompt(toolList),
+	)
 	engine.bindExecutor(tools.NewRegistry(toolList))
 	return engine, nil
 }
@@ -163,12 +168,12 @@ func (engine *Engine) rebindTools() {
 		engine.modelCfg,
 		engine.hooks,
 		tools.Definitions(toolList),
-		engine.systemPrompt(),
+		engine.systemPrompt(toolList),
 	)
 	engine.bindExecutor(tools.NewRegistry(toolList))
 }
 
-func (engine *Engine) systemPrompt() string {
+func (engine *Engine) systemPrompt(toolList []tools.Tool) string {
 	var mcpServers []string
 	if engine.mcp != nil {
 		mcpServers = engine.mcp.ServerNames()
@@ -177,7 +182,11 @@ func (engine *Engine) systemPrompt() string {
 	if engine.jobs != nil {
 		maxConcurrent = engine.jobs.MaxConcurrent()
 	}
-	return prompt.Build(engine.modelCfg.SkillPath, engine.jobs != nil, maxConcurrent, mcpServers)
+	roster := make([]prompt.Tool, 0, len(toolList))
+	for _, tool := range toolList {
+		roster = append(roster, prompt.Tool{Name: tool.Definition.Name, Summary: tool.Summary})
+	}
+	return prompt.Build(engine.modelCfg.SkillPath, engine.jobs != nil, maxConcurrent, mcpServers, roster)
 }
 
 func (engine *Engine) bindExecutor(registry tools.Registry) {
