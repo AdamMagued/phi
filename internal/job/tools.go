@@ -53,12 +53,6 @@ func (m *Manager) HandleSpawn(ctx context.Context, raw json.RawMessage) (Info, e
 	return m.Spawn(ctx, req)
 }
 
-// HandleList is a JSON-tool style entry for agent_list.
-// Args are ignored; callers filter on Info.Status if needed.
-func (m *Manager) HandleList(ctx context.Context, _ json.RawMessage) ([]Info, error) {
-	return m.List(ctx)
-}
-
 // HandleWait is a JSON-tool style entry for agent_wait.
 //
 // TimeoutSec limits how long Wait blocks. It does not cancel the job; the
