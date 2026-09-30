@@ -12,15 +12,15 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-- **又快又小** — 15 MB 二进制、约 21 MB 空闲内存、约 31 ms 首帧；无 Node / Electron / Python 运行时
-- **Sub-agent** — 子任务独立运行，执行过程在 TUI / 任务日志中全程可见，不撑爆父级上下文
-- **Hashline 编辑** — 用 `@file path#TAG` + `LINE#HASH` 锚点做精确编辑，过期锚点直接拒绝，杜绝整文件重写与误改
-- **权限门控** — 破坏性操作先过 Gate / Ask 确认，安全不是可选项
-- **渐进式 MCP** — MCP 服务器想配多少配多少，工具 schema **不**进系统提示；提示只列 **server 名**（同 Skills 目录），按需经 `mcp_list` / `mcp_inspect` / `mcp_call` 发现调用。详见 [MCP](#mcp)
-- **PXB 插件** — Go / Rust 原生二进制插件，走 stdin/stdout 的 PXB 协议。详见 [Extensions（扩展）](#extensions扩展)
-- **原生 Review** — `/diff` 全屏审阅改动（工作区 / staged / HEAD），支持批注并发给代理。详见 [Diff 审阅](#diff-审阅)
-- **代码选中** — `/code` 在 TUI 中直接选中代码发给代理
-- **任意模型** — 通过显式 `api` 字段支持 OpenAI 兼容、Anthropic、Gemini，已知模型自动填充预设。详见 [支持的模型](doc/models.md)
+- **又快又小** — 15 MB · ~31 ms · 无运行时
+- **Sub-agent** — 独立 · 可见 · 父上下文干净
+- **Hashline 编辑** — 锚点定位 · 过期拒绝
+- **权限门控** — Gate/Ask 前置确认
+- **渐进式 MCP** — schema 不进提示
+- **PXB 插件** — Go/Rust 原生二进制
+- **原生 Review** — 全屏 git 审阅
+- **代码选中** — TUI 行选择器
+- **任意模型** — OpenAI / Anthropic / Gemini
 
 ![phi 欢迎界面](assets/phi.png)
 

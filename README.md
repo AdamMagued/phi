@@ -12,15 +12,15 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-- **Fast and small** — ~15 MB binary, ~21 MB idle RSS, ~31 ms to first frame; no Node / Electron / Python runtime
-- **Sub-agents** — isolated jobs, with the full run visible in the TUI and job logs; the parent context stays lean
-- **Hashline edits** — exact edits via `@file path#TAG` + `LINE#HASH` anchors ([oh-my-pi](https://github.com/can1357/oh-my-pi) style); stale anchors fail closed instead of overwriting the wrong lines
-- **Permission gate** — Gate / Ask before destructive tools fire; safety is not optional
-- **Progressive MCP** — as many MCP servers as you want; tool schemas **never** enter the prompt. The system prompt lists **server names** only (like the Skills catalog); tools are discovered on demand via `mcp_list` / `mcp_inspect` / `mcp_call`. See [MCP](#mcp)
-- **PXB extensions** — Go or Rust native binaries over the **PXB** protocol on stdin/stdout, with author SDKs ([`ext/go`](ext/go), [`ext/rust`](ext/rust)). See [Extensions](#extensions)
-- **Native diff review** — `/diff` opens a full-screen git review (working tree / staged / HEAD); add line notes and send them to the agent. See [Diff review](#diff-review)
-- **Native code selection** — `/code` selects lines in the TUI and hands them to the chat as `path:12-18` references
-- **Any model** — OpenAI-compatible, Anthropic, or Gemini via an explicit `api` field; presets fill in endpoints for known models. See [Supported models](doc/models.md)
+- **Fast and small** — 15 MB · ~31 ms · no runtime
+- **Sub-agents** — isolated · visible · lean parent
+- **Hashline edits** — anchor-based · fail-closed
+- **Permission gate** — Gate/Ask before destructive ops
+- **Progressive MCP** — schemas out of prompt
+- **PXB extensions** — Go/Rust native binaries
+- **Native diff review** — full-screen git review
+- **Native code selection** — TUI line picker
+- **Any model** — OpenAI / Anthropic / Gemini
 
 ![phi welcome](assets/phi.png)
 
