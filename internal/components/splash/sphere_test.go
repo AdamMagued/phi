@@ -26,3 +26,21 @@ func TestSphereDrawFillsEllipse(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, nonEmpty, 40, "expected sphere cells")
 }
+
+func TestGradient(t *testing.T) {
+	stops := []rgb{{0, 0, 0}, {100, 200, 50}, {200, 100, 0}}
+	require.Equal(t, rgb{0, 0, 0}, gradient(stops, -1), "clamps below zero")
+	require.Equal(t, rgb{200, 100, 0}, gradient(stops, 1.5), "clamps above one")
+	require.Equal(t, rgb{50, 100, 25}, gradient(stops, 0.25), "first segment midpoint")
+	require.Equal(t, rgb{150, 150, 25}, gradient(stops, 0.75), "second segment midpoint")
+}
+
+func TestSpherePalette(t *testing.T) {
+	sphere := &Sphere{Width: 10, Height: 10}
+	sphere.ensure()
+	require.Len(t, sphere.colors, paletteLen, "gradient is sampled into full length")
+
+	first, last := sphereStops[0], sphereStops[len(sphereStops)-1]
+	require.Equal(t, xui.RGBColor(first.r, first.g, first.b), sphere.colors[0], "dim end")
+	require.Equal(t, xui.RGBColor(last.r, last.g, last.b), sphere.colors[paletteLen-1], "bright end")
+}
