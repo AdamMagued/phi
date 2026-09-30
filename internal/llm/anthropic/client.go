@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
@@ -59,6 +60,7 @@ func BuildRequest(
 
 	if cfg.Think.Enabled {
 		req.Thinking = buildThinkingConfig(cfg.Think.Mode)
+		req.MaxTokens = req.Thinking.requiredMaxTokens()
 	}
 
 	var systemText strings.Builder
@@ -211,6 +213,9 @@ func toolUseInput(arguments string) json.RawMessage {
 	return encoded
 }
 
+// minThinkingBudget is the API floor for budget_tokens.
+const minThinkingBudget = 1024
+
 // buildThinkingConfig maps a ThinkMode to Anthropic's thinking parameter.
 // Adaptive ("adaptive") lets the model decide the effort level;
 // budget-based sets a fixed token cap per thinking level.
@@ -219,7 +224,7 @@ func buildThinkingConfig(mode llm.ThinkMode) *thinkingConfig {
 	case llm.Off:
 		return nil
 	case llm.Minimal, llm.Low:
-		budget := 1024
+		budget := minThinkingBudget
 		return &thinkingConfig{Type: "enabled", BudgetTokens: &budget}
 	case llm.Medium:
 		budget := 8192
@@ -230,6 +235,50 @@ func buildThinkingConfig(mode llm.ThinkMode) *thinkingConfig {
 	default:
 		return &thinkingConfig{Type: "adaptive"}
 	}
+}
+
+// requiredMaxTokens returns the max_tokens that keeps an answer-sized
+// allowance beside the thinking budget: thinking tokens count toward
+// max_tokens and the API requires budget_tokens < max_tokens. Without a
+// budget (adaptive or thinking off) the default cap applies.
+func (t *thinkingConfig) requiredMaxTokens() int {
+	if t == nil || t.BudgetTokens == nil {
+		return defaultMaxTokens
+	}
+	return defaultMaxTokens + *t.BudgetTokens
+}
+
+// validateThinking re-checks the budget invariants after hooks: a hook that
+// raises budget_tokens, lowers max_tokens, or drops the budget below the API
+// floor would otherwise fail at the API with a less specific error. Adaptive
+// thinking carries no budget and passes.
+func validateThinking(req *AnthropicRequest) error {
+	if req.Thinking == nil {
+		return nil
+	}
+	budget := req.Thinking.BudgetTokens
+	if budget == nil {
+		if req.Thinking.Type != "enabled" {
+			return nil // adaptive carries no budget
+		}
+		return fmt.Errorf(
+			"anthropic: thinking type enabled requires budget_tokens of at least %d",
+			minThinkingBudget,
+		)
+	}
+	if *budget < minThinkingBudget {
+		return fmt.Errorf(
+			"anthropic: thinking budget_tokens %d must be at least %d",
+			*budget, minThinkingBudget,
+		)
+	}
+	if *budget >= req.MaxTokens {
+		return fmt.Errorf(
+			"anthropic: thinking budget_tokens %d must be less than max_tokens %d",
+			*budget, req.MaxTokens,
+		)
+	}
+	return nil
 }
 
 func newMessagesHTTPRequest(ctx context.Context, cfg llm.ModelConfig, body []byte, stream bool) (*http.Request, error) {
@@ -260,6 +309,11 @@ func Stream(
 	req *AnthropicRequest,
 ) iter.Seq2[llm.StreamEvent, error] {
 	return func(yield func(llm.StreamEvent, error) bool) {
+		if err := validateThinking(req); err != nil {
+			yield(llm.StreamEvent{}, err)
+			return
+		}
+
 		body, err := json.Marshal(req)
 		if err != nil {
 			yield(llm.StreamEvent{}, err)

@@ -2,6 +2,9 @@ package anthropic
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -253,4 +256,109 @@ func processForTest(sse string) []llm.StreamEvent {
 		return true
 	})
 	return events
+}
+
+// Thinking tokens draw from max_tokens, and the API requires
+// budget_tokens < max_tokens: every enabled level must keep an answer-sized
+// allowance beside the budget instead of shrinking the answer away.
+func TestBuildRequestThinkingBudget(t *testing.T) {
+	cases := []struct {
+		name          string
+		think         llm.ThinkConfig
+		wantType      string // "" means no thinking field on the wire
+		wantBudget    int    // 0 means no budget_tokens field
+		wantMaxTokens int
+	}{
+		{"disabled", llm.ThinkConfig{}, "", 0, defaultMaxTokens},
+		{"off", llm.ThinkConfig{Enabled: true, Mode: llm.Off}, "", 0, defaultMaxTokens},
+		{"minimal", llm.ThinkConfig{Enabled: true, Mode: llm.Minimal}, "enabled", 1024, defaultMaxTokens + 1024},
+		{"low", llm.ThinkConfig{Enabled: true, Mode: llm.Low}, "enabled", 1024, defaultMaxTokens + 1024},
+		{"medium", llm.ThinkConfig{Enabled: true, Mode: llm.Medium}, "enabled", 8192, defaultMaxTokens + 8192},
+		{"high", llm.ThinkConfig{Enabled: true, Mode: llm.High}, "enabled", 16384, defaultMaxTokens + 16384},
+		{"xhigh", llm.ThinkConfig{Enabled: true, Mode: llm.XHigh}, "enabled", 16384, defaultMaxTokens + 16384},
+		{"max", llm.ThinkConfig{Enabled: true, Mode: llm.Max}, "enabled", 16384, defaultMaxTokens + 16384},
+		{"empty-is-adaptive", llm.ThinkConfig{Enabled: true}, "adaptive", 0, defaultMaxTokens},
+		{"unknown-is-adaptive", llm.ThinkConfig{Enabled: true, Mode: "bogus"}, "adaptive", 0, defaultMaxTokens},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := llm.ModelConfig{Name: "claude-sonnet-4-20250514", Think: tc.think}
+			req := BuildRequest(cfg, "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, nil)
+
+			require.Equal(t, tc.wantMaxTokens, req.MaxTokens)
+			if tc.wantType == "" {
+				require.Nil(t, req.Thinking, "no thinking field expected")
+				return
+			}
+			require.NotNil(t, req.Thinking)
+			assert.Equal(t, tc.wantType, req.Thinking.Type)
+			if tc.wantBudget == 0 {
+				assert.Nil(t, req.Thinking.BudgetTokens)
+				return
+			}
+			require.NotNil(t, req.Thinking.BudgetTokens)
+			assert.Equal(t, tc.wantBudget, *req.Thinking.BudgetTokens)
+			// What the builder produced must clear the gate Stream will run.
+			require.NoError(t, validateThinking(&req))
+		})
+	}
+}
+
+func TestValidateThinking(t *testing.T) {
+	require.ErrorContains(t, validateThinking(&AnthropicRequest{
+		MaxTokens: defaultMaxTokens,
+		Thinking:  &thinkingConfig{Type: "enabled"},
+	}), "thinking type enabled requires budget_tokens")
+	require.NoError(t, validateThinking(&AnthropicRequest{
+		MaxTokens: defaultMaxTokens,
+		Thinking:  &thinkingConfig{Type: "disabled"},
+	}))
+	budget := 8192
+	require.ErrorContains(t, validateThinking(&AnthropicRequest{
+		MaxTokens: defaultMaxTokens,
+		Thinking:  &thinkingConfig{Type: "enabled", BudgetTokens: &budget},
+	}), "thinking budget_tokens 8192 must be less than max_tokens 4096")
+
+	tiny := 500
+	require.ErrorContains(t, validateThinking(&AnthropicRequest{
+		MaxTokens: defaultMaxTokens,
+		Thinking:  &thinkingConfig{Type: "enabled", BudgetTokens: &tiny},
+	}), "thinking budget_tokens 500 must be at least 1024")
+
+	require.NoError(t, validateThinking(&AnthropicRequest{
+		MaxTokens: defaultMaxTokens + budget,
+		Thinking:  &thinkingConfig{Type: "enabled", BudgetTokens: &budget},
+	}))
+	require.NoError(t, validateThinking(&AnthropicRequest{
+		MaxTokens: defaultMaxTokens,
+		Thinking:  &thinkingConfig{Type: "adaptive"},
+	}), "adaptive carries no budget")
+	require.NoError(t, validateThinking(&AnthropicRequest{MaxTokens: defaultMaxTokens}))
+}
+
+// Compaction never sends thinking: its single summarization call must stay a
+// plain text request regardless of the session's thinking level.
+func TestCompactRequestHasNoThinking(t *testing.T) {
+	var body []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"summary"}],"stop_reason":"end_turn"}`))
+	}))
+	defer srv.Close()
+
+	cfg := llm.ModelConfig{
+		Name: "claude-sonnet-4-20250514", BaseURL: srv.URL, APIKey: "k",
+		Think: llm.ThinkConfig{Enabled: true, Mode: llm.Max},
+	}
+	_, err := Compact(t.Context(), http.DefaultClient, cfg, llm.CompactRequest{Prompt: "summarize", MaxTokens: 100})
+	require.NoError(t, err)
+
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &raw))
+	_, has := raw["thinking"]
+	require.False(t, has, "compact must not send a thinking field")
+	var maxTokens int
+	require.NoError(t, json.Unmarshal(raw["max_tokens"], &maxTokens))
+	require.Equal(t, 100, maxTokens, "compact must preserve the caller's output cap")
 }
