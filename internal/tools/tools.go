@@ -68,13 +68,13 @@ var (
 // DefaultTools returns the built-in agent tool set.
 func DefaultTools() []Tool {
 	return []Tool{
-		bashtool.BashTool(),
 		readtool.ReadTool(),
-		writetool.WriteTool(),
 		greptool.GrepTool(),
+		findtool.FindTool(),
 		lstool.LsTool(),
 		writetool.EditTool(),
-		findtool.FindTool(),
+		bashtool.BashTool(),
+		writetool.WriteTool(),
 	}
 }
 
