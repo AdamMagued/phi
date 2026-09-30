@@ -1,5 +1,3 @@
-<p align="center">Phi is an agent designed for programmers.</p>
-
 <p align="center">
   <img src="assets/pixel-text-PHI.png" alt="phi" width="220" style="image-rendering: pixelated; image-rendering: crisp-edges;">
 </p>
