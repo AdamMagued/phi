@@ -25,7 +25,9 @@ Required hash: the 4 hex chars AFTER # in the latest @file path#TAG header
 Put multiple changes to the same file in one edits array — they share one TAG
 and apply against the same original snapshot.
 After a successful edit the TAG and all LINE#HASH anchors for that file are dead:
-re-read before another edit call on the same path. On mismatch errors, re-read and retry.
+re-read before another edit call on the same path. On a file TAG mismatch, re-read the
+file; on a LINE#HASH mismatch, retry with the updated references shown in the error —
+no re-read needed.
 
 Each element of edits is a range replace:
 - from + to (LINE#HASH only, e.g. "5#abc" — do not include |content) + content
@@ -151,7 +153,7 @@ func runEdit(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	}
 	if expectedTag != actualTag {
 		return tooldef.Result{}, fmt.Errorf(
-			"file TAG mismatch: edit.hash=%s but current file is %s. Re-read the file and copy the 4 hex chars after # before retrying",
+			"file TAG mismatch: edit.hash=%s but current file is %s. Re-read the file for a fresh TAG and anchors before retrying",
 			expectedTag,
 			util.FormatFileHeader(display, actualTag),
 		)
