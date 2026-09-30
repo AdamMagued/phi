@@ -3,6 +3,7 @@
 </p>
 
 <p align="center">
+  <a href="https://pulseaiclub.github.io/"><img alt="Docs" src="https://img.shields.io/badge/docs-58A6FF?style=flat&colorA=222222&colorB=58A6FF" /></a>
   <a href="https://discord.gg/UnyHB3tvRk"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
   <a href="README.zh-CN.md"><img alt="中文" src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-58A6FF?style=flat&colorA=222222&colorB=58A6FF" /></a>
   <a href="https://github.com/pulseaiclub/phi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pulseaiclub/phi?style=flat&colorA=222222&colorB=58A6FF" alt="License"></a>
@@ -11,18 +12,7 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-A lean, high-performance terminal coding agent harness in Go — a sibling to Pi.
-
-**Docs:** [pulseaiclub.github.io](https://pulseaiclub.github.io/)
-
-- **Fast and small** — ~15 MB release binary, ~21 MB idle RSS, ~31 ms to first frame; no Node / Electron / Python runtime
-- **Sub-agents** — spawn isolated jobs and watch the full run unfold in the TUI / job logs, without stuffing every turn into the parent context
-- **Hashline edits** — edit by whole-file `@file path#TAG` plus line `LINE#HASH` anchors (same idea as [oh-my-pi](https://github.com/can1357/oh-my-pi)): the model points at anchors instead of rewriting whole files; stale tags/hashes are rejected so over-edits and silent corruption stop here
-- **Permission gate** — Gate / Ask before destructive tools fire; safety is not optional when an agent can touch your tree
-- **MCP without context death** — configure as many MCP servers as you want; their tool schemas **never** enter the model prompt. The system prompt lists **server names** only (like the Skills catalog); the agent uses three meta-tools (`mcp_list` / `mcp_inspect` / `mcp_call`) to discover and call on demand. Same Gate / Ask / Hooks path as built-in tools. See [MCP](#mcp)
-- **Extensions (Go or Rust)** — native binaries speak the **PXB** binary protocol over stdin/stdout; official author SDKs for Go ([`ext/go`](ext/go)) and Rust ([`ext/rust`](ext/rust)): LLM tools, slash commands, event intercepts, confirm dialogs — no reflection; JSON at the SDK edges via `serde_json`. See [Extensions](#extensions)
-- **In-TUI diff review** — `/diff` opens a full-screen git review (working tree / staged / HEAD): syntax-highlighted hunks, line notes, then `a` sends notes to the agent. See [Diff review](#diff-review)
-- **Any model** — OpenAI-compatible, Anthropic, or Gemini via an explicit `api` field; built-in presets fill endpoint, context window, and capabilities for known model names (GPT, DeepSeek, Gemini, Kimi, GLM). See [Supported models](doc/models.md)
+- 15 MB · ~31 ms · no runtime · isolated sub-agents · hashline edits · permission gate · progressive MCP · Go/Rust PXB extensions · native diff review & code selection · OpenAI / Anthropic / Gemini
 
 ![phi welcome](assets/phi.png)
 
