@@ -52,3 +52,13 @@ jobs:
         run: goreleaser release --clean --release-notes="${{ steps.changelog.outputs.path }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure release notes from CHANGELOG
+        # GoReleaser creates the release + uploads archives, but the body it
+        # writes can diverge from changelog-extract.sh output. Force-overwrite
+        # the body with the extracted CHANGELOG section as a final guarantee.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" \
+            --notes-file "${{ steps.changelog.outputs.path }}"
