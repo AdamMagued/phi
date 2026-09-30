@@ -22,6 +22,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Compaction no longer saves a blank model summary as the session checkpoint:
+  a finished generation that carries no text fails the compaction instead of
+  replacing the history with whitespace. An empty-history refresh whose old
+  summary contains only a file list now uses "No prior history." as the summary
+  text and preserves the tracked file list.
+
 ### Security
 
 ## [0.28.0] - 2026-09-28

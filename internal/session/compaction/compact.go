@@ -230,8 +230,13 @@ func summarizeHistory(
 	if len(preparation.MessagesToSummarize) == 0 {
 		// An empty history bucket can still have context from an earlier compaction.
 		if preparation.PreviousSummary != "" {
-			return stripFileOperations(preparation.PreviousSummary, preparation.PreviousFileOperations), nil
+			stripped := stripFileOperations(preparation.PreviousSummary, preparation.PreviousFileOperations)
+			if strings.TrimSpace(stripped) != "" {
+				return stripped, nil
+			}
 		}
+		// Make the absence of history text explicit when the previous summary
+		// was blank or contained only its appended file list.
 		return "No prior history.", nil
 	}
 	return generateSummary(

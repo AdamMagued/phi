@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"github.com/pulseaiclub/phi/internal/llm"
 )
@@ -40,6 +41,13 @@ func summarizationCap(reserveTokens int, ratio float64) int {
 // the history it replaced.
 func errTruncatedSummary(label string) error {
 	return fmt.Errorf("%s failed: generation hit the token cap, summary incomplete", label)
+}
+
+// errEmptySummary reports a finished generation that carries no text. A blank
+// summary persists nothing on its own, and the file list appended around it
+// would end up as a checkpoint that lost the history it replaced.
+func errEmptySummary(label string) error {
+	return fmt.Errorf("%s failed: model returned an empty summary", label)
 }
 
 // generateSummary generates a summary of the conversation history using an LLM.
@@ -82,8 +90,9 @@ func generateTurnPrefixSummary(
 	return compact(ctx, compactor, promptText, maxTokens, "Turn prefix summarization")
 }
 
-// compact runs one summarization call and rejects a capped answer: a truncated
-// summary would silently drop the history it is meant to stand in for.
+// compact runs one summarization call and rejects a capped or blank answer:
+// either way there is no usable summary, and persisting what came back would
+// silently drop the history it is meant to stand in for.
 func compact(
 	ctx context.Context,
 	compactor llm.Compactor,
@@ -97,6 +106,9 @@ func compact(
 	}
 	if res.Truncated {
 		return "", errTruncatedSummary(label)
+	}
+	if strings.TrimSpace(res.Text) == "" {
+		return "", errEmptySummary(label)
 	}
 	return res.Text, nil
 }
