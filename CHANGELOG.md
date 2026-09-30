@@ -14,6 +14,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - The `read` tool now ships as a built-in extension plugin (`readtool.Plugin`) on the same bus as MCP instead of a hard-wired core tool. Sub-agents still get it via their explicit tool profile.
 - `phi run --tools` accepts plugin-served tool names (`read`) but no longer filters them out: built-in plugin tools always load via the extension bus.
+- Hashline `edit` description now matches mismatch behavior: retry a `LINE#HASH`
+  mismatch with the error's updated references; re-read on a file TAG mismatch.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Anthropic thinking requests no longer exceed max_tokens: Medium levels and
+  above sent budget_tokens (8192/16384) at or above the fixed max_tokens (4096),
+  which the API rejects. max_tokens now reserves a 4096-token answer allowance
+  beside the thinking budget. Budget constraints, including a missing budget
+  with thinking enabled, are checked after request hooks run.
+
+### Security
+
+## [0.28.1] - 2026-09-30
+
+### Added
+
+### Changed
 
 - Splash sphere now uses the aurora gradient instead of always green.
 - System prompt drops the "in a shared workspace" wording; it carried no signal.
@@ -818,7 +840,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.1...HEAD
+[0.28.1]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.1
 [0.28.0]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.0
 [0.27.6]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.6
 [0.27.5]: https://github.com/pulseaiclub/phi/compare/v0.27.4...v0.27.5
