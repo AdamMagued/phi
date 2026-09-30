@@ -1,8 +1,11 @@
+<p align="center">Phi 是专为程序员打造的 agent。</p>
+
 <p align="center">
   <img src="assets/pixel-text-PHI.png" alt="phi" width="220" style="image-rendering: pixelated; image-rendering: crisp-edges;">
 </p>
 
 <p align="center">
+  <a href="https://pulseaiclub.github.io/"><img alt="文档" src="https://img.shields.io/badge/docs-58A6FF?style=flat&colorA=222222&colorB=58A6FF" /></a>
   <a href="https://discord.gg/UnyHB3tvRk"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
   <a href="README.md"><img alt="English" src="https://img.shields.io/badge/English-58A6FF?style=flat&colorA=222222&colorB=58A6FF" /></a>
   <a href="https://github.com/pulseaiclub/phi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pulseaiclub/phi?style=flat&colorA=222222&colorB=58A6FF" alt="License"></a>
@@ -11,18 +14,15 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-一个精简且性能出众的 Go 终端编码代理框架（harness）——Pi 的姊妹项目。
-
-**文档：** [pulseaiclub.github.io](https://pulseaiclub.github.io/)
-
-- **又快又小** — 发布二进制约 15 MB，空闲 RSS 约 21 MB，首帧约 31 ms；无 Node / Electron / Python 运行时
-- **子代理（Sub-agents）** — 拉起隔离任务，在 TUI / job 日志里完整看到执行过程，而不是把每一步都塞进父会话上下文
-- **Hashline 编辑** — 用整文件 `@file path#TAG` 加上行级 `LINE#HASH` 锚点改文件（思路对齐 [oh-my-pi](https://github.com/can1357/oh-my-pi)）：模型瞄锚点改，而不是整文件重写；TAG/哈希对不上就拒绝，避免过度编辑和静默写坏
-- **权限门控** — 危险工具先过 Gate / Ask；代理能碰你的代码树时，安全不是可选项
-- **MCP 不炸上下文** — 随便配多少 MCP 服务器，工具 schema **绝不**进模型 prompt。系统提示只列 **server 名**（像 Skills 目录）；Agent 用三个元工具（`mcp_list` / `mcp_inspect` / `mcp_call`）按需发现再调用；权限仍走 Gate / Ask / Hooks。详见 [MCP](#mcp)
-- **扩展（Go 或 Rust）** — 原生二进制通过 stdin/stdout 讲 **PXB** 协议；官方作者 SDK：Go（[`ext/go`](ext/go)）+ 零依赖 Rust 移植（[`ext/rust`](ext/rust)）：LLM 工具、斜杠命令、事件拦截、确认对话框——无 JSON、无反射。详见 [Extensions（扩展）](#extensions扩展)
-- **TUI 内 diff 审阅** — `/diff` 全屏审阅 git 改动（工作区 / staged / HEAD）：语法高亮、行级批注，按 `a` 发给代理。详见 [Diff 审阅](#diff-审阅)
-- **任意模型** — 通过显式 `api` 字段支持 OpenAI 兼容、Anthropic、Gemini；对已知模型名（GPT / DeepSeek / Gemini / Kimi / GLM）内置 preset 自动补齐 endpoint、上下文窗口与能力。详见 [支持的模型](doc/models.md)
+- **又快又小** — 15 MB 二进制、约 21 MB 空闲内存、约 31 ms 首帧；无 Node / Electron / Python 运行时
+- **Sub-agent** — 子任务独立运行，执行过程在 TUI / 任务日志中全程可见，不撑爆父级上下文
+- **Hashline 编辑** — 用 `@file path#TAG` + `LINE#HASH` 锚点做精确编辑，过期锚点直接拒绝，杜绝整文件重写与误改
+- **权限门控** — 破坏性操作先过 Gate / Ask 确认，安全不是可选项
+- **渐进式 MCP** — MCP 服务器想配多少配多少，工具 schema **不**进系统提示；提示只列 **server 名**（同 Skills 目录），按需经 `mcp_list` / `mcp_inspect` / `mcp_call` 发现调用。详见 [MCP](#mcp)
+- **PXB 插件** — Go / Rust 原生二进制插件，走 stdin/stdout 的 PXB 协议。详见 [Extensions（扩展）](#extensions扩展)
+- **原生 Review** — `/diff` 全屏审阅改动（工作区 / staged / HEAD），支持批注并发给代理。详见 [Diff 审阅](#diff-审阅)
+- **代码选中** — `/code` 在 TUI 中直接选中代码发给代理
+- **任意模型** — 通过显式 `api` 字段支持 OpenAI 兼容、Anthropic、Gemini，已知模型自动填充预设。详见 [支持的模型](doc/models.md)
 
 ![phi 欢迎界面](assets/phi.png)
 
