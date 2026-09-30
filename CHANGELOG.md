@@ -14,6 +14,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Splash sphere now uses the aurora gradient instead of always green.
 - System prompt drops the "in a shared workspace" wording; it carried no signal.
+- System prompt reserves `bash` for real binaries and short fact pipelines;
+  file inspection belongs to `read`/`grep`/`find`/`edit`.
 
 ### Deprecated
 
