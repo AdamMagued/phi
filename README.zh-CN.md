@@ -12,15 +12,7 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-- **又快又小** — 15 MB · ~31 ms · 无运行时
-- **Sub-agent** — 独立 · 可见 · 父上下文干净
-- **Hashline 编辑** — 锚点定位 · 过期拒绝
-- **权限门控** — Gate/Ask 前置确认
-- **渐进式 MCP** — schema 不进提示
-- **PXB 插件** — Go/Rust 原生二进制
-- **原生 Review** — 全屏 git 审阅
-- **代码选中** — TUI 行选择器
-- **任意模型** — OpenAI / Anthropic / Gemini
+- 15 MB · ~31 ms · 无运行时 · 独立 sub-agent · 锚点编辑 · 权限门控 · 渐进式 MCP · Go/Rust PXB 插件 · 全屏审阅 & 代码选中 · OpenAI / Anthropic / Gemini
 
 ![phi 欢迎界面](assets/phi.png)
 
