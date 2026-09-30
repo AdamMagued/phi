@@ -1,0 +1,33 @@
+# Release Drafter configuration
+# Docs: https://github.com/release-drafter/release-drafter
+#
+# This config is used by the release-drafter action when grouping PRs into
+# draft releases. The primary release notes source for this project is
+# CHANGELOG.md (extracted by scripts/changelog-extract.sh). This file serves
+# as a fallback template if PR-based notes are needed.
+
+template: |
+  ## Changes
+
+  $CHANGES
+
+categories:
+  - title: Added
+    labels:
+      - "feature"
+  - title: Changed
+    labels:
+      - "changed"
+  - title: Fixed
+    labels:
+      - "fix"
+  - title: Documentation
+    labels:
+      - "documentation"
+  - title: Maintenance
+    labels:
+      - "chore"
+      - "dependencies"
+change-template: "- $TITLE @$AUTHOR"
+change-title-escapes: "\<*_&"
+version: ${DRAFT_PR_TITLE##v}
