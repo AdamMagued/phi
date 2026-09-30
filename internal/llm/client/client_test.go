@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pulseaiclub/phi/internal/llm"
+	"github.com/pulseaiclub/phi/internal/llm/anthropic"
 	"github.com/pulseaiclub/phi/internal/llm/openai"
 )
 
@@ -300,4 +301,43 @@ func collectEvents(seq func(func(llm.StreamEvent, error) bool)) []llm.StreamEven
 		events = append(events, ev)
 	}
 	return events
+}
+
+type anthropicMaxTokensCutter struct{}
+
+func (anthropicMaxTokensCutter) Before(_ context.Context, req *anthropic.AnthropicRequest, _ llm.ModelConfig) error {
+	req.MaxTokens = 4096
+	return nil
+}
+
+type anthropicBudgetRemover struct{}
+
+func (anthropicBudgetRemover) Before(_ context.Context, req *anthropic.AnthropicRequest, _ llm.ModelConfig) error {
+	req.Thinking.BudgetTokens = nil
+	return nil
+}
+
+func TestClientStreamAnthropicRejectsMissingBudgetAfterHook(t *testing.T) {
+	client := NewClient(llm.ModelConfig{
+		Name: "claude-sonnet-4-20250514", BaseURL: "http://127.0.0.1:9", API: llm.Anthropic,
+		Think: llm.ThinkConfig{Enabled: true, Mode: llm.Low},
+	}, Hooks{Anthropic: anthropicBudgetRemover{}}, nil, "")
+	events := collectEvents(client.Stream(t.Context(), []llm.Message{{Role: llm.RoleUser, Content: "hi"}}))
+	require.Len(t, events, 1)
+	require.Equal(t, llm.StreamEventTypeError, events[0].Type)
+	require.Contains(t, events[0].Err, "thinking type enabled requires budget_tokens")
+}
+
+// A hook that shrinks max_tokens below the thinking budget must fail before
+// any HTTP call, with the specific invariant message instead of the API's
+// generic 400.
+func TestClientStreamAnthropicValidatesThinkingAfterHook(t *testing.T) {
+	client := NewClient(llm.ModelConfig{
+		Name: "claude-sonnet-4-20250514", BaseURL: "http://127.0.0.1:9", API: llm.Anthropic,
+		Think: llm.ThinkConfig{Enabled: true, Mode: llm.Medium},
+	}, Hooks{Anthropic: anthropicMaxTokensCutter{}}, nil, "")
+	events := collectEvents(client.Stream(t.Context(), []llm.Message{{Role: llm.RoleUser, Content: "hi"}}))
+	require.Len(t, events, 1)
+	require.Equal(t, llm.StreamEventTypeError, events[0].Type)
+	require.Contains(t, events[0].Err, "thinking budget_tokens 8192 must be less than max_tokens 4096")
 }
