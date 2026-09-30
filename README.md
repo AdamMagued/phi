@@ -12,15 +12,7 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-- **Fast and small** — 15 MB · ~31 ms · no runtime
-- **Sub-agents** — isolated · visible · lean parent
-- **Hashline edits** — anchor-based · fail-closed
-- **Permission gate** — Gate/Ask before destructive ops
-- **Progressive MCP** — schemas out of prompt
-- **PXB extensions** — Go/Rust native binaries
-- **Native diff review** — full-screen git review
-- **Native code selection** — TUI line picker
-- **Any model** — OpenAI / Anthropic / Gemini
+- 15 MB · ~31 ms · no runtime · isolated sub-agents · hashline edits · permission gate · progressive MCP · Go/Rust PXB extensions · native diff review & code selection · OpenAI / Anthropic / Gemini
 
 ![phi welcome](assets/phi.png)
 
