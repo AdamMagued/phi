@@ -1,5 +1,3 @@
-<p align="center">Phi 是专为程序员打造的 agent。</p>
-
 <p align="center">
   <img src="assets/pixel-text-PHI.png" alt="phi" width="220" style="image-rendering: pixelated; image-rendering: crisp-edges;">
 </p>
