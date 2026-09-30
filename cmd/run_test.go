@@ -129,7 +129,7 @@ func TestSelectBuiltinToolsErrorListsAvailableNames(t *testing.T) {
 	_, err := selectBuiltinTools("read,nope,missing")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, `unknown built-in tools "missing", "nope"`)
-	assert.ErrorContains(t, err, "available: bash, read, write, grep, ls, edit, find")
+	assert.ErrorContains(t, err, "available: "+strings.Join(toolNames(tools.DefaultTools()), ", "))
 }
 
 func TestSelectedBuiltinToolsStillAppendExternalTools(t *testing.T) {
