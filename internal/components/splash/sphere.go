@@ -11,11 +11,12 @@ import (
 // Classic sphere charset.
 const sphereCharset = " .:-=+*#%@"
 
-// Default sphere palette endpoints (dark green → bright green).
-var (
-	spherePrimary   = rgb{0, 55, 0}
-	sphereSecondary = rgb{0, 255, 136}
-)
+// paletteLen is how many color steps a gradient is sampled into.
+const paletteLen = 64
+
+// sphereStops is the sphere gradient: stops[0] is the dim end, the last stop the
+// bright end.
+var sphereStops = []rgb{{0, 45, 55}, {0, 190, 175}, {150, 255, 235}}
 
 type rgb struct{ r, g, b uint8 }
 
@@ -27,10 +28,33 @@ func lerpRGB(a, b rgb, t float64) rgb {
 		t = 1
 	}
 	return rgb{
-		r: uint8(math.Round(float64(a.r) + float64(b.r-a.r)*t)),
-		g: uint8(math.Round(float64(a.g) + float64(b.g-a.g)*t)),
-		b: uint8(math.Round(float64(a.b) + float64(b.b-a.b)*t)),
+		r: uint8(math.Round(float64(a.r) + (float64(b.r)-float64(a.r))*t)),
+		g: uint8(math.Round(float64(a.g) + (float64(b.g)-float64(a.g))*t)),
+		b: uint8(math.Round(float64(a.b) + (float64(b.b)-float64(a.b))*t)),
 	}
+}
+
+// gradient samples a multi-stop linear gradient at t ∈ [0,1].
+func gradient(stops []rgb, t float64) rgb {
+	if t <= 0 {
+		return stops[0]
+	}
+	if t >= 1 {
+		return stops[len(stops)-1]
+	}
+	seg := t * float64(len(stops)-1)
+	i := int(seg)
+	return lerpRGB(stops[i], stops[i+1], seg-float64(i))
+}
+
+// buildPalette samples a gradient into paletteLen color steps.
+func buildPalette(stops []rgb) []xui.Color {
+	colors := make([]xui.Color, paletteLen)
+	for i := range colors {
+		c := gradient(stops, float64(i)/float64(paletteLen-1))
+		colors[i] = xui.RGBColor(c.r, c.g, c.b)
+	}
+	return colors
 }
 
 // Sphere is an ASCII sphere for the splash screen.
@@ -42,8 +66,8 @@ type Sphere struct {
 	// Fast speeds noise scroll (1.8x when true, else 1x).
 	Fast bool
 
-	noise   glowNoise
-	palette []xui.Color
+	noise  glowNoise
+	colors []xui.Color
 }
 
 func (o *Sphere) ensure() {
@@ -56,13 +80,8 @@ func (o *Sphere) ensure() {
 	if o.noise.seed == 0 {
 		o.noise = newGlowNoise(2654435761)
 	}
-	if len(o.palette) == 0 {
-		const n = 64
-		o.palette = make([]xui.Color, n)
-		for i := range n {
-			c := lerpRGB(spherePrimary, sphereSecondary, float64(i)/float64(n-1))
-			o.palette[i] = xui.RGBColor(c.r, c.g, c.b)
-		}
+	if len(o.colors) == 0 {
+		o.colors = buildPalette(sphereStops)
 	}
 }
 
@@ -105,7 +124,7 @@ func (o *Sphere) Draw(ctx components.DrawContext) components.Surface {
 	}
 	chars := []rune(sphereCharset)
 	nChars := len(chars)
-	nPal := len(o.palette)
+	nPal := len(o.colors)
 
 	for row := 0; row < h; row++ {
 		py := (float64(row) - cy) * invKx
@@ -132,7 +151,7 @@ func (o *Sphere) Draw(ctx components.DrawContext) components.Surface {
 			s.SetCell(col, row, xui.Cell{
 				Char:  string(chars[gi]),
 				Width: 1,
-				Style: xui.Style{Fg: o.palette[ci]},
+				Style: xui.Style{Fg: o.colors[ci]},
 			})
 		}
 	}
