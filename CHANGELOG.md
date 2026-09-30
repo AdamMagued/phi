@@ -18,6 +18,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Anthropic thinking requests no longer exceed max_tokens: Medium levels and
+  above sent budget_tokens (8192/16384) at or above the fixed max_tokens (4096),
+  which the API rejects. max_tokens now reserves a 4096-token answer allowance
+  beside the thinking budget. Budget constraints, including a missing budget
+  with thinking enabled, are checked after request hooks run.
+
 ### Security
 
 ## [0.28.1] - 2026-09-30
