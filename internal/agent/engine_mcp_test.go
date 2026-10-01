@@ -8,7 +8,7 @@ import (
 	"github.com/pulseaiclub/phi/internal/agent"
 	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/llm"
-	"github.com/pulseaiclub/phi/internal/mcp"
+	"github.com/pulseaiclub/phi/internal/tools/mcp"
 )
 
 // MCP reaches the engine as a built-in plugin on the extension bus, so these

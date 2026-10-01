@@ -11,8 +11,8 @@ import (
 	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
 	"github.com/pulseaiclub/phi/internal/llm"
-	"github.com/pulseaiclub/phi/internal/mcp"
 	"github.com/pulseaiclub/phi/internal/permission"
+	"github.com/pulseaiclub/phi/internal/tools/mcp"
 )
 
 func probeRunner(t *testing.T, text string) *extension.Runner {

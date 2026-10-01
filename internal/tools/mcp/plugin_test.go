@@ -8,7 +8,7 @@ import (
 
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/extension"
-	"github.com/pulseaiclub/phi/internal/mcp"
+	"github.com/pulseaiclub/phi/internal/tools/mcp"
 )
 
 func testPool() *mcp.Pool {

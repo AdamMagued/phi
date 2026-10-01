@@ -11,8 +11,8 @@ import (
 
 	cli "github.com/pulseaiclub/pli"
 
-	"github.com/pulseaiclub/phi/internal/mcp"
 	"github.com/pulseaiclub/phi/internal/project"
+	"github.com/pulseaiclub/phi/internal/tools/mcp"
 )
 
 var (
