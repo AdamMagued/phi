@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pulseaiclub/phi/internal/tools/tooldef"
+	ext "github.com/pulseaiclub/phi/ext/go"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,7 +111,7 @@ func TestRunGrep_LimitReachedStopsCleanly(t *testing.T) {
 }
 
 // runGrepBounded fails the test instead of hanging the suite.
-func runGrepBounded(t *testing.T, in grepInput) (tooldef.Result, error) {
+func runGrepBounded(t *testing.T, in grepInput) (ext.ToolResult, error) {
 	t.Helper()
 	raw, err := json.Marshal(in)
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func runGrepBounded(t *testing.T, in grepInput) (tooldef.Result, error) {
 	defer cancel()
 
 	type result struct {
-		out tooldef.Result
+		out ext.ToolResult
 		err error
 	}
 	done := make(chan result, 1)
@@ -137,6 +137,6 @@ func runGrepBounded(t *testing.T, in grepInput) (tooldef.Result, error) {
 		return got.out, got.err
 	case <-time.After(30 * time.Second):
 		require.FailNow(t, "runGrep hung")
-		return tooldef.Result{}, nil
+		return ext.ToolResult{}, nil
 	}
 }

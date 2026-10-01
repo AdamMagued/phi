@@ -68,7 +68,7 @@ func TestParseRole(t *testing.T) {
 func toolNameSet(list []tools.Tool) map[string]bool {
 	m := make(map[string]bool, len(list))
 	for _, tool := range list {
-		m[tool.Definition.Name] = true
+		m[tool.Name] = true
 	}
 	return m
 }

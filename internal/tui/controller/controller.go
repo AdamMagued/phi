@@ -22,10 +22,13 @@ import (
 	"github.com/pulseaiclub/phi/internal/project"
 	"github.com/pulseaiclub/phi/internal/project/model"
 	"github.com/pulseaiclub/phi/internal/session"
+	"github.com/pulseaiclub/phi/internal/tools/bashtool"
 	"github.com/pulseaiclub/phi/internal/tools/findtool"
+	"github.com/pulseaiclub/phi/internal/tools/greptool"
 	"github.com/pulseaiclub/phi/internal/tools/lstool"
 	"github.com/pulseaiclub/phi/internal/tools/mcp"
 	"github.com/pulseaiclub/phi/internal/tools/readtool"
+	"github.com/pulseaiclub/phi/internal/tools/writetool"
 )
 
 const defaultAskTimeoutSec = 120
@@ -283,6 +286,9 @@ func loadExtensions(proj *project.Project) *extension.Runner {
 	r.AddPlugin(readtool.Plugin())
 	r.AddPlugin(lstool.Plugin())
 	r.AddPlugin(findtool.Plugin())
+	r.AddPlugin(bashtool.Plugin())
+	r.AddPlugin(greptool.Plugin())
+	r.AddPlugin(writetool.Plugin())
 	// The runner owns plugin resources, so quitting closes the MCP pool too.
 	r.AddPlugin(mcp.Plugin(loadMCPPool(proj)))
 	return r

@@ -8,10 +8,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/pulseaiclub/phi/internal/tools/tooldef"
+	ext "github.com/pulseaiclub/phi/ext/go"
 
 	"github.com/pulseaiclub/phi/internal/job"
-	"github.com/pulseaiclub/phi/internal/llm"
+	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 )
 
 const agentSummaryLimit = 12000 // bytes, keep parent context small
@@ -42,9 +42,12 @@ type AgentDeps struct {
 	WorkDir  func() string
 }
 
-// AgentTools returns agent_spawn / list / wait / cancel.
+// AgentTools returns agent_spawn / wait / cancel as SDK tools. Agent tools
+// are the loop's own recursion mechanism, so they stay engine-attached rather
+// than riding the plugin bus — but they are expressed in the SDK shape like
+// every other tool.
 // Depth is forced to 0; ParentID comes from ParentID(), not model args.
-func AgentTools(deps AgentDeps) []tooldef.Tool {
+func AgentTools(deps AgentDeps) []ext.Tool {
 	if deps.Manager == nil {
 		return nil
 	}
@@ -54,59 +57,61 @@ func AgentTools(deps AgentDeps) []tooldef.Tool {
 	if deps.WorkDir == nil {
 		deps.WorkDir = func() string { return "" }
 	}
-	return []tooldef.Tool{
+	return []ext.Tool{
 		agentSpawnTool(deps),
 		agentWaitTool(deps),
 		agentCancelTool(deps),
 	}
 }
 
-func agentSpawnTool(deps AgentDeps) tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name: "agent_spawn",
-			Description: fmt.Sprintf(agentLaunchGuidance+`
+func objectSchema(props map[string]any, required ...string) map[string]any {
+	m := map[string]any{"type": "object", "properties": props}
+	if len(required) > 0 {
+		m["required"] = required
+	}
+	return m
+}
+
+func agentSpawnTool(deps AgentDeps) ext.Tool {
+	return ext.Tool{
+		Name: "agent_spawn",
+		Description: fmt.Sprintf(agentLaunchGuidance+`
 
 Starts asynchronously and returns job_id immediately. Use agent_wait for the summary. Best for parallel jobs.
 
 Concurrency cap: at most %d sub-agents run concurrently; spawning more fails (jobs are not queued).`, deps.Manager.MaxConcurrent()),
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"prompt": llm.Object{
-						"type":        "string",
-						"description": "Self-contained task. Include context, scope, and exactly what the final summary must return. The sub-agent cannot ask follow-ups.",
-					},
-					"description": llm.Object{
-						"type":        "string",
-						"description": "Very short label for the UI / job list (e.g. \"find auth config\").",
-					},
-					"role": llm.Object{
-						"type":        "string",
-						"description": "explore (default) | review | worker. See tool description for when to pick each.",
-						"enum":        []string{"explore", "review", "worker"},
-					},
-					"workdir": llm.Object{
-						"type":        "string",
-						"description": "Working directory for the sub-agent (default: parent session cwd).",
-					},
-					"timeout_sec": llm.Object{
-						"type":        "integer",
-						"description": "Optional run timeout in seconds for the job itself (not wait).",
-					},
-				},
-				Required: []string{"prompt"},
+		Parameters: objectSchema(map[string]any{
+			"prompt": map[string]any{
+				"type":        "string",
+				"description": "Self-contained task. Include context, scope, and exactly what the final summary must return. The sub-agent cannot ask follow-ups.",
 			},
-		},
+			"description": map[string]any{
+				"type":        "string",
+				"description": "Very short label for the UI / job list (e.g. \"find auth config\").",
+			},
+			"role": map[string]any{
+				"type":        "string",
+				"description": "explore (default) | review | worker. See tool description for when to pick each.",
+				"enum":        []string{"explore", "review", "worker"},
+			},
+			"workdir": map[string]any{
+				"type":        "string",
+				"description": "Working directory for the sub-agent (default: parent session cwd).",
+			},
+			"timeout_sec": map[string]any{
+				"type":        "integer",
+				"description": "Optional run timeout in seconds for the job itself (not wait).",
+			},
+		}, "prompt"),
 		DetailFromArgs: spawnDetail,
-		Run: func(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 			in, err := parseSpawnInput(input)
 			if err != nil {
-				return tooldef.Result{}, err
+				return ext.ToolResult{}, err
 			}
 			role, err := job.ParseRole(in.Role)
 			if err != nil {
-				return tooldef.Result{}, err
+				return ext.ToolResult{}, err
 			}
 			wd := strings.TrimSpace(in.WorkDir)
 			if wd == "" {
@@ -126,7 +131,7 @@ Concurrency cap: at most %d sub-agents run concurrently; spawning more fails (jo
 			}
 			info, err := deps.Manager.Spawn(ctx, req)
 			if err != nil {
-				return tooldef.Result{}, err
+				return ext.ToolResult{}, err
 			}
 			body := mustJSON(map[string]any{
 				"job_id":      info.ID,
@@ -135,7 +140,7 @@ Concurrency cap: at most %d sub-agents run concurrently; spawning more fails (jo
 				"dir":         info.Dir,
 				"result_path": info.ResultPath,
 			})
-			return tooldef.Result{Content: body, Detail: roleDetail(string(info.Role), info.ID), Output: body}, nil
+			return ext.ToolResult{Content: body, Detail: roleDetail(string(info.Role), info.ID), Output: body}, nil
 		},
 	}
 }
@@ -180,29 +185,23 @@ func roleDetail(role, rest string) string {
 	return r + " · " + rest
 }
 
-func agentWaitTool(deps AgentDeps) tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name: "agent_wait",
-			Description: `Block until a sub-agent job reaches a terminal status and return its result.md summary.
+func agentWaitTool(deps AgentDeps) ext.Tool {
+	return ext.Tool{
+		Name: "agent_wait",
+		Description: `Block until a sub-agent job reaches a terminal status and return its result.md summary.
 
 timeout_sec only limits how long this wait blocks — it does NOT cancel the job.
 Use agent_cancel to stop a running job.`,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"job_id": llm.Object{
-						"type":        "string",
-						"description": "Job id from agent_spawn.",
-					},
-					"timeout_sec": llm.Object{
-						"type":        "integer",
-						"description": "Max seconds to wait (does not cancel the job).",
-					},
-				},
-				Required: []string{"job_id"},
+		Parameters: objectSchema(map[string]any{
+			"job_id": map[string]any{
+				"type":        "string",
+				"description": "Job id from agent_spawn.",
 			},
-		},
+			"timeout_sec": map[string]any{
+				"type":        "integer",
+				"description": "Max seconds to wait (does not cancel the job).",
+			},
+		}, "job_id"),
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in struct {
 				JobID string `json:"job_id"`
@@ -210,10 +209,10 @@ Use agent_cancel to stop a running job.`,
 			_ = json.Unmarshal(input, &in)
 			return in.JobID
 		},
-		Run: func(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 			res, err := deps.Manager.HandleWait(ctx, input)
 			if err != nil {
-				return tooldef.Result{}, err
+				return ext.ToolResult{}, err
 			}
 			summary := truncateBytes(res.Summary, agentSummaryLimit)
 			body := mustJSON(map[string]any{
@@ -224,7 +223,7 @@ Use agent_cancel to stop a running job.`,
 				"result_path": res.Info.ResultPath,
 				"summary":     summary,
 			})
-			return tooldef.Result{
+			return ext.ToolResult{
 				Content: body,
 				Detail:  roleDetail(string(res.Info.Role), string(res.Info.Status)),
 				Output:  body,
@@ -233,21 +232,15 @@ Use agent_cancel to stop a running job.`,
 	}
 }
 
-func agentCancelTool(deps AgentDeps) tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "agent_cancel",
-			Description: `Cancel a running or starting sub-agent job and wait until it stops.`,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"job_id": llm.Object{
-						"type": "string",
-					},
-				},
-				Required: []string{"job_id"},
+func agentCancelTool(deps AgentDeps) ext.Tool {
+	return ext.Tool{
+		Name:        "agent_cancel",
+		Description: `Cancel a running or starting sub-agent job and wait until it stops.`,
+		Parameters: objectSchema(map[string]any{
+			"job_id": map[string]any{
+				"type": "string",
 			},
-		},
+		}, "job_id"),
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in struct {
 				JobID string `json:"job_id"`
@@ -255,12 +248,12 @@ func agentCancelTool(deps AgentDeps) tooldef.Tool {
 			_ = json.Unmarshal(input, &in)
 			return in.JobID
 		},
-		Run: func(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 			if err := deps.Manager.HandleCancel(ctx, input); err != nil {
-				return tooldef.Result{}, err
+				return ext.ToolResult{}, err
 			}
 			body := mustJSON(map[string]any{"ok": true})
-			return tooldef.Result{Content: body, Detail: "cancelled", Output: body}, nil
+			return ext.ToolResult{Content: body, Detail: "cancelled", Output: body}, nil
 		},
 	}
 }

@@ -38,7 +38,8 @@ func WithContinueAsk(fn ContinueFunc) EngineOption {
 	return func(c *engineConfig) { c.continueAsk = fn }
 }
 
-// WithTools sets the base tool list (nil = tools.DefaultTools(); sub-agents use ChildTools()).
+// WithTools sets the base tool list (nil = no core tools; built-ins arrive via
+// plugins, sub-agents use ChildTools()).
 func WithTools(list []tools.Tool) EngineOption {
 	return func(c *engineConfig) { c.tools = list }
 }

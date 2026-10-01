@@ -10,7 +10,6 @@ import (
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/ext/go/pxb"
 	"github.com/pulseaiclub/phi/internal/debuglog"
-	"github.com/pulseaiclub/phi/internal/tools"
 )
 
 // Runner owns the external PXB extension subprocesses. It implements [Host] by
@@ -228,9 +227,9 @@ func (r *Runner) runProcCommand(name, args string) (CommandOutcome, bool, error)
 
 // The remaining [Host] methods are pure forwarding; behavior lives in bus.go.
 
-func (r *Runner) SetBaseTools(base []tools.Tool) { r.host().SetBaseTools(base) }
+func (r *Runner) SetBaseTools(base []ext.Tool) { r.host().SetBaseTools(base) }
 
-func (r *Runner) ExtensionTools() []tools.Tool { return r.host().ExtensionTools() }
+func (r *Runner) ExtensionTools() []ext.Tool { return r.host().ExtensionTools() }
 
 func (r *Runner) CommandEntries() []ext.CommandEntry { return r.host().CommandEntries() }
 

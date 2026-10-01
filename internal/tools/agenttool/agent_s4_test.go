@@ -43,7 +43,7 @@ func TestS4DualSpawnWait(t *testing.T) {
 
 	spawn := func(desc string) string {
 		raw, _ := json.Marshal(map[string]any{"prompt": "p-" + desc, "description": desc})
-		res, err := reg["agent_spawn"].Run(t.Context(), raw)
+		res, err := reg["agent_spawn"].Execute(t.Context(), raw)
 		require.NoError(t, err)
 		var out struct {
 			JobID string `json:"job_id"`
@@ -58,7 +58,7 @@ func TestS4DualSpawnWait(t *testing.T) {
 
 	wait := func(id string) string {
 		raw, _ := json.Marshal(map[string]any{"job_id": id})
-		res, err := reg["agent_wait"].Run(t.Context(), raw)
+		res, err := reg["agent_wait"].Execute(t.Context(), raw)
 		require.NoError(t, err)
 		var out struct {
 			Status  string `json:"status"`
@@ -109,7 +109,7 @@ func TestS4Cancel(t *testing.T) {
 	}))
 
 	raw, _ := json.Marshal(map[string]any{"prompt": "hang"})
-	spawnRes, err := reg["agent_spawn"].Run(t.Context(), raw)
+	spawnRes, err := reg["agent_spawn"].Execute(t.Context(), raw)
 	require.NoError(t, err)
 	var spawned struct {
 		JobID string `json:"job_id"`
@@ -123,20 +123,20 @@ func TestS4Cancel(t *testing.T) {
 	}
 
 	cancelRaw, _ := json.Marshal(map[string]any{"job_id": spawned.JobID})
-	_, err = reg["agent_cancel"].Run(t.Context(), cancelRaw)
+	_, err = reg["agent_cancel"].Execute(t.Context(), cancelRaw)
 	require.NoError(t, err)
 
 	waitRaw, _ := json.Marshal(map[string]any{"job_id": spawned.JobID})
-	waitRes, err := reg["agent_wait"].Run(t.Context(), waitRaw)
+	waitRes, err := reg["agent_wait"].Execute(t.Context(), waitRaw)
 	require.NoError(t, err)
 	assert.Contains(t, waitRes.Content, `"status": "cancelled"`)
 }
 
 func TestS4ChildToolsNoAgentSpawn(t *testing.T) {
 	for _, tool := range agent.ChildTools() {
-		assert.NotEqual(t, "agent_spawn", tool.Definition.Name)
-		assert.False(t, strings.HasPrefix(tool.Definition.Name, "agent_"))
-		assert.NotEqual(t, "write", tool.Definition.Name)
-		assert.NotEqual(t, "edit", tool.Definition.Name)
+		assert.NotEqual(t, "agent_spawn", tool.Name)
+		assert.False(t, strings.HasPrefix(tool.Name, "agent_"))
+		assert.NotEqual(t, "write", tool.Name)
+		assert.NotEqual(t, "edit", tool.Name)
 	}
 }

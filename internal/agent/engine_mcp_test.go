@@ -8,6 +8,7 @@ import (
 	"github.com/pulseaiclub/phi/internal/agent"
 	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/llm"
+	"github.com/pulseaiclub/phi/internal/tools/bashtool"
 	"github.com/pulseaiclub/phi/internal/tools/mcp"
 )
 
@@ -21,6 +22,7 @@ func TestEngineRegistersMCPMetaTools(t *testing.T) {
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
 	runner.AddPlugin(mcp.Plugin(pool))
+	runner.AddPlugin(bashtool.Plugin())
 
 	sess, err := agent.NewSession(agent.WithCwd(t.TempDir()))
 	require.NoError(t, err)

@@ -13,9 +13,10 @@ import (
 	"strings"
 	"sync"
 
+	ext "github.com/pulseaiclub/phi/ext/go"
+	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 
-	"github.com/pulseaiclub/phi/internal/llm"
 	"github.com/pulseaiclub/phi/internal/project"
 	"github.com/pulseaiclub/phi/internal/util"
 )
@@ -51,55 +52,55 @@ Use read for full untruncated line text. Prefer this over bash grep/rg.`,
 	grepDefaultMaxBytes/1024,
 )
 
-// GrepTool returns the grep (search) tool definition + handler.
-func GrepTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "grep",
-			Description: grepDescription,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"pattern": llm.Object{
-						"type":        "string",
-						"description": "Regex or literal string to search. Example: func Test.*",
-					},
-					"path": llm.Object{
-						"type":        "string",
-						"description": "Directory or file to search. Example: ./src",
-					},
-					"glob": llm.Object{
-						"type":        "string",
-						"description": "File pattern filter. Example: *_test.go",
-					},
-					"include": llm.Object{
-						"type":        "string",
-						"description": "Deprecated alias for glob; prefer glob.",
-					},
-					"ignoreCase": llm.Object{
-						"type":        "boolean",
-						"description": "true for case-insensitive search (default: false)",
-					},
-					"literal": llm.Object{
-						"type":        "boolean",
-						"description": "true to treat pattern as literal text (default: false)",
-					},
-					"context": llm.Object{
-						"type":        "integer",
-						"description": "Lines of context around each match. Example: 2",
-					},
-					"limit": llm.Object{
-						"type": "integer",
-						"description": fmt.Sprintf(
-							"Maximum matches to return. Example: 50 (default: %d)",
-							grepDefaultLimit,
-						),
-					},
+// Tool returns the grep tool definition in the ext API shape. It is the
+// single source of truth: the plugin bus serves it to main engines, and
+// sub-agent ChildSpec lists use it directly.
+func Tool() ext.Tool {
+	return ext.Tool{
+		Name:        "grep",
+		Description: grepDescription,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"pattern": map[string]any{
+					"type":        "string",
+					"description": "Regex or literal string to search. Example: func Test.*",
 				},
-				Required: []string{"pattern"},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Directory or file to search. Example: ./src",
+				},
+				"glob": map[string]any{
+					"type":        "string",
+					"description": "File pattern filter. Example: *_test.go",
+				},
+				"include": map[string]any{
+					"type":        "string",
+					"description": "Deprecated alias for glob; prefer glob.",
+				},
+				"ignoreCase": map[string]any{
+					"type":        "boolean",
+					"description": "true for case-insensitive search (default: false)",
+				},
+				"literal": map[string]any{
+					"type":        "boolean",
+					"description": "true to treat pattern as literal text (default: false)",
+				},
+				"context": map[string]any{
+					"type":        "integer",
+					"description": "Lines of context around each match. Example: 2",
+				},
+				"limit": map[string]any{
+					"type": "integer",
+					"description": fmt.Sprintf(
+						"Maximum matches to return. Example: 50 (default: %d)",
+						grepDefaultLimit,
+					),
+				},
 			},
-			Readable: true,
+			"required": []string{"pattern"},
 		},
+		Readable: true,
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in grepInput
 			_ = json.Unmarshal(input, &in)
@@ -113,8 +114,14 @@ func GrepTool() tooldef.Tool {
 			}
 			return "grep"
 		},
-		Run: runGrep,
+		Execute: runGrep,
 	}
+}
+
+// Plugin adapts the grep tool to the built-in plugin bus. Grep owns no
+// resources, so the plugin carries no Close.
+func Plugin() extension.Plugin {
+	return extension.ToolPlugin(Tool())
 }
 
 type grepInput struct {
@@ -143,19 +150,19 @@ type grepMatch struct {
 	lineNumber int
 }
 
-func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+func runGrep(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 	var in grepInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to parse grep arguments: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("failed to parse grep arguments: %w", err)
 	}
 	if strings.TrimSpace(in.Pattern) == "" {
-		return tooldef.Result{}, errors.New("pattern is required: provide a regex or literal search string")
+		return ext.ToolResult{}, errors.New("pattern is required: provide a regex or literal search string")
 	}
 
 	// Resolve ripgrep binary.
 	rgPathLocal, err := resolveRipgrepPath()
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	// Resolve search path.
@@ -167,11 +174,11 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	// paths are absolute and ReadFile works regardless of process cwd.
 	searchPath, err := tooldef.ResolveToCwd(ctx, searchRel)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	if _, err := os.Stat(searchPath); err != nil {
-		return tooldef.Result{}, fmt.Errorf("path not found: %s. Check the path and try again", searchPath)
+		return ext.ToolResult{}, fmt.Errorf("path not found: %s. Check the path and try again", searchPath)
 	}
 
 	contextN := in.Context
@@ -202,11 +209,11 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	cmd := exec.CommandContext(ctx, rgPathLocal, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return tooldef.Result{}, fmt.Errorf("ripgrep stdout: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("ripgrep stdout: %w", err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return tooldef.Result{}, fmt.Errorf("ripgrep stderr: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("ripgrep stderr: %w", err)
 	}
 	var stderrBuf bytes.Buffer
 	stderrDone := make(chan struct{})
@@ -216,7 +223,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	}()
 
 	if err := cmd.Start(); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to run ripgrep: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("failed to run ripgrep: %w", err)
 	}
 
 	reader := bufio.NewReaderSize(stdout, 64*1024)
@@ -230,7 +237,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	for {
 		if ctx.Err() != nil {
 			stopRipgrep(cmd, stdout)
-			return tooldef.Result{}, ctx.Err()
+			return ext.ToolResult{}, ctx.Err()
 		}
 		line, err := readEvent(reader, grepMaxEventBytes)
 		if errors.Is(err, errOversizedEvent) {
@@ -242,7 +249,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 		}
 		if err != nil {
 			stopRipgrep(cmd, stdout)
-			return tooldef.Result{}, fmt.Errorf("reading ripgrep output: %w", err)
+			return ext.ToolResult{}, fmt.Errorf("reading ripgrep output: %w", err)
 		}
 		var ev rgJSONEvent
 		if err := json.Unmarshal(line, &ev); err != nil {
@@ -273,7 +280,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	}
 	<-stderrDone
 	if ctx.Err() != nil {
-		return tooldef.Result{}, ctx.Err()
+		return ext.ToolResult{}, ctx.Err()
 	}
 	if !killedForLimit && waitErr != nil {
 		code := exitCode(waitErr)
@@ -282,7 +289,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 			if msg == "" {
 				msg = fmt.Sprintf("ripgrep exited with code %d", code)
 			}
-			return tooldef.Result{}, errors.New(msg)
+			return ext.ToolResult{}, errors.New(msg)
 		}
 	}
 
@@ -296,7 +303,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 				formatBytes(grepMaxEventBytes),
 			)
 		}
-		return tooldef.Result{Content: content, Detail: "0 matches", Output: content}, nil
+		return ext.ToolResult{Content: content, Detail: "0 matches", Output: content}, nil
 	}
 
 	// Read matched files to produce output.
@@ -373,7 +380,7 @@ func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	}
 
 	detail := fmt.Sprintf("%d matches", matchCount)
-	return tooldef.Result{Content: output, Detail: detail, Output: output}, nil
+	return ext.ToolResult{Content: output, Detail: detail, Output: output}, nil
 }
 
 // readEvent reads one newline-terminated ripgrep JSON event, buffering at most

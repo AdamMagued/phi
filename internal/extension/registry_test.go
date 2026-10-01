@@ -8,8 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ext "github.com/pulseaiclub/phi/ext/go"
 )
 
 func TestInstallMetaRoundtrip(t *testing.T) {
@@ -89,11 +87,4 @@ func TestListInstalledEmptyOrMissingDir(t *testing.T) {
 	got, err = ListInstalled(filepath.Join(t.TempDir(), "nope"))
 	require.NoError(t, err)
 	assert.Empty(t, got)
-}
-
-func TestToolFromDefReadable(t *testing.T) {
-	got := ToolFromDef(ext.Tool{Name: "read", Readable: true})
-	assert.True(t, got.Definition.Readable)
-	assert.Equal(t, "read", got.Definition.Name)
-	assert.False(t, ToolFromDef(ext.Tool{Name: "write"}).Definition.Readable)
 }

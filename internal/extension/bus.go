@@ -10,8 +10,6 @@ import (
 
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/debuglog"
-	"github.com/pulseaiclub/phi/internal/llm"
-	"github.com/pulseaiclub/phi/internal/tools"
 )
 
 const maxContextBytes = 4 * 1024
@@ -30,7 +28,7 @@ type bus struct {
 	session string
 	hasUI   bool
 
-	baseTools   []tools.Tool
+	baseTools   []ext.Tool
 	activeNames map[string]bool // nil = all active
 	host        ext.HostOpts
 
@@ -158,7 +156,7 @@ func (b *bus) SetMeta(sessionID, cwd string) {
 }
 
 // SetBaseTools records built-in tools for GetAllTools / active filtering.
-func (b *bus) SetBaseTools(base []tools.Tool) {
+func (b *bus) SetBaseTools(base []ext.Tool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.baseTools = base
@@ -189,8 +187,8 @@ func (b *bus) getAllToolsLocked() []ext.ToolInfo {
 	var out []ext.ToolInfo
 	for _, t := range b.baseTools {
 		out = append(out, ext.ToolInfo{
-			Name:        t.Definition.Name,
-			Description: t.Definition.Description,
+			Name:        t.Name,
+			Description: t.Description,
 			Source:      "builtin",
 		})
 	}
@@ -219,69 +217,16 @@ func (b *bus) allToolNamesLocked() []string {
 	return out
 }
 
-// ExtensionTools converts registered extension tools to tools.Tool.
-func (b *bus) ExtensionTools() []tools.Tool {
+// ExtensionTools returns every registered plugin tool in the SDK shape —
+// the same shape plugins register, so no conversion happens on this path.
+func (b *bus) ExtensionTools() []ext.Tool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	var out []tools.Tool
+	var out []ext.Tool
 	for _, api := range b.apis {
-		for _, def := range api.Tools() {
-			out = append(out, ToolFromDef(def))
-		}
+		out = append(out, api.Tools()...)
 	}
 	return out
-}
-
-// ToolFromDef converts an extension tool definition to the host tools.Tool
-// shape. The bus uses it for every plugin tool; consumers that bypass the bus
-// (sub-agent ChildSpec lists, which register no plugin tools) call it directly.
-func ToolFromDef(def ext.Tool) tools.Tool {
-	params := schemaFromMap(def.Parameters)
-	exec := def.Execute
-	return tools.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        def.Name,
-			Description: def.Description,
-			Params:      params,
-			Readable:    def.Readable,
-		},
-		DetailFromArgs: def.DetailFromArgs,
-		Run: func(ctx context.Context, input json.RawMessage) (tools.Result, error) {
-			res, err := exec(ctx, input)
-			if err != nil {
-				return tools.Result{}, err
-			}
-			out := res.Output
-			if out == "" {
-				out = res.Content
-			}
-			return tools.Result{Content: res.Content, Detail: res.Detail, Output: out, Expanded: res.Expanded}, nil
-		},
-	}
-}
-
-func schemaFromMap(m map[string]any) *llm.FunctionParameters {
-	if m == nil {
-		return &llm.FunctionParameters{Type: "object", Properties: llm.Object{}}
-	}
-	fp := &llm.FunctionParameters{Type: "object", Properties: llm.Object{}}
-	if t, ok := m["type"].(string); ok && t != "" {
-		fp.Type = t
-	}
-	if props, ok := m["properties"].(map[string]any); ok {
-		fp.Properties = props
-	}
-	switch req := m["required"].(type) {
-	case []string:
-		fp.Required = req
-	case []any:
-		for _, v := range req {
-			if s, ok := v.(string); ok {
-				fp.Required = append(fp.Required, s)
-			}
-		}
-	}
-	return fp
 }
 
 // CommandEntries lists slash commands from all extensions.

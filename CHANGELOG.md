@@ -12,8 +12,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- The `read` tool now ships as a built-in extension plugin (`readtool.Plugin`) on the same bus as MCP instead of a hard-wired core tool. Sub-agents still get it via their explicit tool profile.
-- `phi run --tools` accepts plugin-served tool names (`read`) but no longer filters them out: built-in plugin tools always load via the extension bus.
+- All built-in tools (`read`, `ls`, `find`, `bash`, `grep`, `edit`, `write`) now ship as built-in extension plugins on the same bus as MCP instead of hard-wired core tools. Each package exposes `Tool()` plus a one-line `Plugin()` built with the shared `extension.ToolPlugin` helper; sub-agents still get them via their explicit tool profile.
+- The host now has a single tool API: `ext.Tool` from the plugin SDK. `tooldef.Tool` (with its typed `llm.ToolDefinition` schemas) is gone; the schema/registry adapters live in `internal/tools`, and the extension bus hands plugin tools to the engine without conversion. The extension package no longer depends on the tools facade.
+- `phi run --tools` accepts plugin-served tool names but no longer filters them out: built-in plugin tools always load via the extension bus, so the flag only validates names.
 - Hashline `edit` description now matches mismatch behavior: retry a `LINE#HASH`
   mismatch with the error's updated references; re-read on a file TAG mismatch.
 

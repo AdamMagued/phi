@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pulseaiclub/phi/internal/tools/tooldef"
-
-	"github.com/pulseaiclub/phi/internal/llm"
+	ext "github.com/pulseaiclub/phi/ext/go"
+	"github.com/pulseaiclub/phi/internal/extension"
 )
 
 const (
@@ -23,34 +22,40 @@ Use for build, test, git, and OS tasks that read/ls/find/grep/edit/write cannot
 do. Do not use for cat, head, tail, ls(1), find(1), grep, or rg — those have dedicated
 tools. Large output is truncated with the retained output written to a temp file.`
 
-// BashTool returns the bash tool definition + handler.
-func BashTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "bash",
-			Description: bashDescription,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"command": llm.Object{
-						"type":        "string",
-						"description": "Shell command to run. Example: go test ./...",
-					},
-					"timeout": llm.Object{
-						"type":        "integer",
-						"description": "Timeout in seconds, 1-3600. Example: 120 (default: 300).",
-					},
+// Tool returns the bash tool definition in the ext API shape. It is the
+// single source of truth: the plugin bus serves it to main engines, and
+// sub-agent ChildSpec lists use it directly.
+func Tool() ext.Tool {
+	return ext.Tool{
+		Name:        "bash",
+		Description: bashDescription,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"command": map[string]any{
+					"type":        "string",
+					"description": "Shell command to run. Example: go test ./...",
 				},
-				Required: []string{"command"},
+				"timeout": map[string]any{
+					"type":        "integer",
+					"description": "Timeout in seconds, 1-3600. Example: 120 (default: 300).",
+				},
 			},
+			"required": []string{"command"},
 		},
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in bashInput
 			_ = json.Unmarshal(input, &in)
 			return strings.TrimSpace(in.Command)
 		},
-		Run: runBash,
+		Execute: runBash,
 	}
+}
+
+// Plugin adapts the bash tool to the built-in plugin bus. Bash owns no
+// resources, so the plugin carries no Close.
+func Plugin() extension.Plugin {
+	return extension.ToolPlugin(Tool())
 }
 
 type bashInput struct {
@@ -58,14 +63,14 @@ type bashInput struct {
 	Timeout int    `json:"timeout"`
 }
 
-func runBash(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+func runBash(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 	var in bashInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to parse bash arguments: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("failed to parse bash arguments: %w", err)
 	}
 	cmd := strings.TrimSpace(in.Command)
 	if cmd == "" {
-		return tooldef.Result{}, errors.New("empty command")
+		return ext.ToolResult{}, errors.New("empty command")
 	}
 
 	timeout := in.Timeout
@@ -80,7 +85,7 @@ func runBash(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 
 	c, err := buildShellCommand(ctx, cmd)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 	// Bound the shared stdout/stderr collector so runaway output cannot be
 	// buffered unboundedly.
@@ -102,5 +107,5 @@ func runBash(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 			content = fmt.Sprintf("%s\n(exit error: %v)", out, err)
 		}
 	}
-	return tooldef.Result{Content: content, Detail: cmd, Output: content}, nil
+	return ext.ToolResult{Content: content, Detail: cmd, Output: content}, nil
 }

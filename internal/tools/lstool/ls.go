@@ -29,7 +29,7 @@ const (
 
 // Tool returns the ls tool definition in the ext API shape. It is the
 // single source of truth: the plugin bus serves it to main engines, and
-// sub-agent ChildSpec lists adapt it via extension.ToolFromDef.
+// sub-agent ChildSpec lists use it directly.
 func Tool() ext.Tool {
 	return ext.Tool{
 		Name:        "ls",
@@ -58,27 +58,14 @@ func Tool() ext.Tool {
 			_ = json.Unmarshal(input, &in)
 			return strings.TrimSpace(in.Path)
 		},
-		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
-			res, err := runLs(ctx, input)
-			if err != nil {
-				return ext.ToolResult{}, err
-			}
-			return ext.ToolResult{
-				Content:  res.Content,
-				Detail:   res.Detail,
-				Output:   res.Output,
-				Expanded: res.Expanded,
-			}, nil
-		},
+		Execute: runLs,
 	}
 }
 
-// Plugin adapts the ls tool to the built-in plugin bus, mirroring mcp.Plugin.
-// Ls owns no resources, so the plugin carries no Close.
+// Plugin adapts the ls tool to the built-in plugin bus. Ls owns no
+// resources, so the plugin carries no Close.
 func Plugin() extension.Plugin {
-	api := ext.NewAPI()
-	api.RegisterTool(Tool())
-	return extension.Plugin{API: api}
+	return extension.ToolPlugin(Tool())
 }
 
 type lsInput struct {
@@ -124,29 +111,29 @@ var skipDirs = map[string]bool{
 	".hg":            true,
 }
 
-func runLs(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+func runLs(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 	var in lsInput
 	if err := json.Unmarshal(input, &in); err != nil {
 		// Try as a plain string path.
 		var s string
 		if err2 := json.Unmarshal(input, &s); err2 != nil || strings.TrimSpace(s) == "" {
-			return tooldef.Result{}, fmt.Errorf("failed to parse ls arguments: %w", err)
+			return ext.ToolResult{}, fmt.Errorf("failed to parse ls arguments: %w", err)
 		}
 		in.Path = strings.TrimSpace(s)
 	}
 
 	dir, err := tooldef.ResolveToCwd(ctx, in.Path)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 	dir = filepath.Clean(dir)
 
 	info, err := os.Stat(dir)
 	if err != nil {
-		return tooldef.Result{}, fmt.Errorf("path not found or inaccessible: %s. Check the path and permissions", dir)
+		return ext.ToolResult{}, fmt.Errorf("path not found or inaccessible: %s. Check the path and permissions", dir)
 	}
 	if !info.IsDir() {
-		return tooldef.Result{}, fmt.Errorf("not a directory: %s (ls expects a directory path)", dir)
+		return ext.ToolResult{}, fmt.Errorf("not a directory: %s (ls expects a directory path)", dir)
 	}
 
 	limit, maxDepth := normalizeOptions(in.Limit, in.MaxDepth)
@@ -154,18 +141,18 @@ func runLs(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
 	var fileCount int
 	root := buildTree(ctx, dir, &fileCount, limit, 0, maxDepth)
 	if root == nil {
-		return tooldef.Result{}, fmt.Errorf("failed to build tree for directory %s", dir)
+		return ext.ToolResult{}, fmt.Errorf("failed to build tree for directory %s", dir)
 	}
 
 	display := tooldef.RelToCwd(ctx, dir)
 	treeStr := renderTree(display, root.Children)
 
 	if fileCount < limit {
-		return tooldef.Result{Content: treeStr, Detail: display, Output: treeStr}, nil
+		return ext.ToolResult{Content: treeStr, Detail: display, Output: treeStr}, nil
 	}
 
 	truncated := fmt.Sprintf(truncatedMessage, limit) + treeStr
-	return tooldef.Result{Content: truncated, Detail: display, Output: truncated}, nil
+	return ext.ToolResult{Content: truncated, Detail: display, Output: truncated}, nil
 }
 
 func shouldSkip(name string) bool {

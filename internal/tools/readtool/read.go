@@ -31,7 +31,7 @@ Output body is capped at %d lines and %d KiB per call.`,
 
 // Tool returns the read tool definition in the ext API shape. It is the single
 // source of truth: the plugin bus serves it to main engines, and sub-agent
-// ChildSpec lists adapt it via extension.ToolFromDef.
+// Sub-agent ChildSpec lists use it directly.
 func Tool() ext.Tool {
 	return ext.Tool{
 		Name:        "read",

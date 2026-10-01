@@ -14,14 +14,14 @@ func TestRunWriteCreatesAndOverwrites(t *testing.T) {
 	path := filepath.Join(dir, "nested", "out.txt")
 	tool := WriteTool()
 
-	created, err := tool.Run(t.Context(), mustWriteArgs(t, path, "first\n"))
+	created, err := tool.Execute(t.Context(), mustWriteArgs(t, path, "first\n"))
 	require.NoError(t, err)
 	require.Contains(t, created.Content, "wrote")
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, "first\n", string(got))
 
-	overwritten, err := tool.Run(t.Context(), mustWriteArgs(t, path, "second\n"))
+	overwritten, err := tool.Execute(t.Context(), mustWriteArgs(t, path, "second\n"))
 	require.NoError(t, err)
 	require.Contains(t, overwritten.Content, "wrote")
 	got, err = os.ReadFile(path)
@@ -34,7 +34,7 @@ func TestRunWriteRelativePathInResult(t *testing.T) {
 	t.Chdir(dir)
 	tool := WriteTool()
 
-	created, err := tool.Run(t.Context(), mustWriteArgs(t, "nested/out.txt", "first\n"))
+	created, err := tool.Execute(t.Context(), mustWriteArgs(t, "nested/out.txt", "first\n"))
 	require.NoError(t, err)
 	require.Equal(t, "wrote 6 bytes to nested/out.txt", created.Content)
 	require.Equal(t, "nested/out.txt", created.Detail)
@@ -42,7 +42,7 @@ func TestRunWriteRelativePathInResult(t *testing.T) {
 
 func TestRunWriteRequiresPath(t *testing.T) {
 	tool := WriteTool()
-	_, err := tool.Run(t.Context(), []byte(`{"path":"","content":"x"}`))
+	_, err := tool.Execute(t.Context(), []byte(`{"path":"","content":"x"}`))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "path is required")
 }

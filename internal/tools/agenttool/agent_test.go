@@ -31,15 +31,13 @@ func TestAgentToolsSpawnWaitForcesDepthAndParent(t *testing.T) {
 	}))
 	require.Contains(t, reg, "agent_spawn")
 	require.Contains(t, reg, "agent_wait")
-	require.NotContains(t, tools.NewRegistry(tools.DefaultTools()), "agent_spawn")
-
 	spawnArgs, _ := json.Marshal(map[string]any{
 		"prompt":      "do work",
 		"description": "d",
 		"depth":       99, // must be ignored
 		"parent_id":   "evil",
 	})
-	spawnRes, err := reg["agent_spawn"].Run(t.Context(), spawnArgs)
+	spawnRes, err := reg["agent_spawn"].Execute(t.Context(), spawnArgs)
 	require.NoError(t, err)
 	assert.Contains(t, spawnRes.Content, `"role": "explore"`)
 
@@ -50,7 +48,7 @@ func TestAgentToolsSpawnWaitForcesDepthAndParent(t *testing.T) {
 	assert.Equal(t, "explore · "+spawned.JobID, spawnRes.Detail)
 
 	waitArgs, _ := json.Marshal(map[string]any{"job_id": spawned.JobID})
-	waitRes, err := reg["agent_wait"].Run(t.Context(), waitArgs)
+	waitRes, err := reg["agent_wait"].Execute(t.Context(), waitArgs)
 	require.NoError(t, err)
 	assert.Contains(t, waitRes.Content, "summary-ok")
 	assert.Contains(t, waitRes.Content, `"status": "completed"`)
@@ -79,7 +77,7 @@ func TestAgentToolsSpawnRoleWorker(t *testing.T) {
 	})
 	assert.Equal(t, "worker · implement x", reg["agent_spawn"].DetailFromArgs(raw))
 
-	res, err := reg["agent_spawn"].Run(t.Context(), raw)
+	res, err := reg["agent_spawn"].Execute(t.Context(), raw)
 	require.NoError(t, err)
 	assert.Contains(t, res.Content, `"role": "worker"`)
 
@@ -89,7 +87,7 @@ func TestAgentToolsSpawnRoleWorker(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(res.Content), &spawned))
 	assert.Equal(t, "worker · "+spawned.JobID, res.Detail)
 	waitArgs, _ := json.Marshal(map[string]any{"job_id": spawned.JobID})
-	waitRes, err := reg["agent_wait"].Run(t.Context(), waitArgs)
+	waitRes, err := reg["agent_wait"].Execute(t.Context(), waitArgs)
 	require.NoError(t, err)
 	assert.Contains(t, waitRes.Content, `"status": "completed"`)
 	assert.Equal(t, "worker · completed", waitRes.Detail)
@@ -132,12 +130,6 @@ func TestAgentToolsSpawnBadRole(t *testing.T) {
 		Manager: mgr,
 	}))
 	raw, _ := json.Marshal(map[string]any{"prompt": "x", "role": "nope"})
-	_, err = reg["agent_spawn"].Run(t.Context(), raw)
+	_, err = reg["agent_spawn"].Execute(t.Context(), raw)
 	require.Error(t, err)
-}
-
-func TestChildToolsExcludeAgent(t *testing.T) {
-	for _, tool := range tools.DefaultTools() {
-		assert.NotContains(t, tool.Definition.Name, "agent_")
-	}
 }

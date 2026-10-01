@@ -1,11 +1,15 @@
 package agent
 
 import (
-	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
 	"github.com/pulseaiclub/phi/internal/permission"
 	"github.com/pulseaiclub/phi/internal/tools"
+	"github.com/pulseaiclub/phi/internal/tools/bashtool"
+	"github.com/pulseaiclub/phi/internal/tools/findtool"
+	"github.com/pulseaiclub/phi/internal/tools/greptool"
+	"github.com/pulseaiclub/phi/internal/tools/lstool"
 	"github.com/pulseaiclub/phi/internal/tools/readtool"
+	"github.com/pulseaiclub/phi/internal/tools/writetool"
 )
 
 // ChildSpec is the capability profile for a sub-agent role.
@@ -21,11 +25,25 @@ func ChildTools() []tools.Tool {
 	return SpecForRole(job.RoleExplore).Tools
 }
 
-// withRead prepends the read tool to a child profile. Sub-agents register no
-// plugin tools, so read — implemented as a built-in plugin like mcp — has to
-// join the explicit list here.
-func withRead(list []tools.Tool) []tools.Tool {
-	return append([]tools.Tool{extension.ToolFromDef(readtool.Tool())}, list...)
+// readonlyPlugins returns the read-only plugin tool set for child profiles.
+// Sub-agents register no plugin tools, so these — implemented as built-in
+// plugins like mcp — have to join the explicit list here.
+func readonlyPlugins() []tools.Tool {
+	return []tools.Tool{
+		readtool.Tool(),
+		lstool.Tool(),
+		findtool.Tool(),
+		bashtool.Tool(),
+		greptool.Tool(),
+	}
+}
+
+// writablePlugins returns all plugin tools including edit and write.
+func writablePlugins() []tools.Tool {
+	return append(readonlyPlugins(),
+		writetool.EditTool(),
+		writetool.WriteTool(),
+	)
 }
 
 // SpecForRole returns tools, permission mode, and closing hint for a role.
@@ -35,21 +53,21 @@ func SpecForRole(role job.Role) ChildSpec {
 	case job.RoleWorker:
 		return ChildSpec{
 			Role:  job.RoleWorker,
-			Tools: withRead(tools.DefaultTools()), // no agent_*; writable
+			Tools: writablePlugins(), // no agent_*; writable
 			Mode:  permission.ModeHeadlessStrict,
 			Hint:  workerSummaryHint,
 		}
 	case job.RoleReview:
 		return ChildSpec{
 			Role:  job.RoleReview,
-			Tools: withRead(tools.ReadonlyTools()),
+			Tools: readonlyPlugins(),
 			Mode:  permission.ModeReadonly,
 			Hint:  reviewSummaryHint,
 		}
 	default:
 		return ChildSpec{
 			Role:  job.RoleExplore,
-			Tools: withRead(tools.ReadonlyTools()),
+			Tools: readonlyPlugins(),
 			Mode:  permission.ModeReadonly,
 			Hint:  exploreSummaryHint,
 		}

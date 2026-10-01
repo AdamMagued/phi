@@ -88,7 +88,7 @@ func (e *Executor) readableBatch(calls []llm.ToolCall) bool {
 	}
 	for _, call := range calls {
 		tool, ok := e.registry[call.Function.Name]
-		if !ok || !tool.Definition.Readable {
+		if !ok || !tool.Readable {
 			return false
 		}
 	}
@@ -223,7 +223,7 @@ func (e *Executor) runOne(
 		return msg, false, ""
 	}
 
-	result, err := tool.Run(tools.WithToolCallID(ctx, call.ID), args)
+	result, err := tool.Execute(tools.WithToolCallID(ctx, call.ID), args)
 
 	var (
 		errText string

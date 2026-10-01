@@ -156,11 +156,11 @@ func main() {
 	t.Cleanup(r.Close)
 	tools := r.ExtensionTools()
 	require.Len(t, tools, 1)
-	assert.Equal(t, "greet", tools[0].Definition.Name)
+	assert.Equal(t, "greet", tools[0].Name)
 	require.NotNil(t, tools[0].DetailFromArgs)
 	assert.Equal(t, "phi", tools[0].DetailFromArgs(json.RawMessage(`{"name":"phi"}`)))
 
-	res, err := tools[0].Run(t.Context(), json.RawMessage(`{"name":"phi"}`))
+	res, err := tools[0].Execute(t.Context(), json.RawMessage(`{"name":"phi"}`))
 	require.NoError(t, err)
 	assert.Equal(t, "Hello, phi!", res.Content)
 }

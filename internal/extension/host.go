@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	ext "github.com/pulseaiclub/phi/ext/go"
-	"github.com/pulseaiclub/phi/internal/tools"
 )
 
 type Host interface {
@@ -33,8 +32,8 @@ type EventHandler interface {
 }
 
 type ToolHandler interface {
-	SetBaseTools([]tools.Tool)
-	ExtensionTools() []tools.Tool
+	SetBaseTools([]ext.Tool)
+	ExtensionTools() []ext.Tool
 	SetMeta(sessionID, cwd string)
 	PreTool(
 		ctx context.Context,
@@ -83,9 +82,9 @@ var Nop Host = nopHost{}
 
 type nopHost struct{}
 
-func (nopHost) SetBaseTools([]tools.Tool)    {}
-func (nopHost) ExtensionTools() []tools.Tool { return nil }
-func (nopHost) SetMeta(_, _ string)          {}
+func (nopHost) SetBaseTools([]ext.Tool)    {}
+func (nopHost) ExtensionTools() []ext.Tool { return nil }
+func (nopHost) SetMeta(_, _ string)        {}
 
 // PreTool echoes input: the executor applies the returned args only when they
 // are non-empty, so echoing keeps args identical to having no handler at all.

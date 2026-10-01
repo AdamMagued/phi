@@ -49,7 +49,7 @@ type Engine struct {
 	continueAsk  ContinueFunc
 	jobs         *job.Manager
 	extensions   extension.Host // always non-nil; extension.Nop when disabled
-	baseTools    []tools.Tool   // nil = DefaultTools; preserved across rebind
+	baseTools    []tools.Tool   // core tools (nil = none; plugin-served); preserved across rebind
 	omitExtTools bool           // sub-agents: emit events but skip RegisterTool merge
 
 	session *Session
@@ -101,11 +101,10 @@ func (engine *Engine) buildToolList(base []tools.Tool) []tools.Tool {
 	return out
 }
 
-// buildCoreTools returns builtin (+ agent_*) tools without extension RegisterTool.
+// buildCoreTools returns the core tool list: explicit base tools plus agent_*
+// when jobs are attached. Built-in file/shell tools are not here — they ship
+// as plugins and join via ExtensionTools.
 func (engine *Engine) buildCoreTools(base []tools.Tool) []tools.Tool {
-	if base == nil {
-		base = tools.DefaultTools()
-	}
 	out := base
 	if engine.jobs == nil {
 		return out

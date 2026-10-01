@@ -53,8 +53,8 @@ func TestAddPluginReachesTheHostLikeASubprocessExtension(t *testing.T) {
 
 	tools := runner.ExtensionTools()
 	require.Len(t, tools, 1)
-	assert.Equal(t, "fake_tool", tools[0].Definition.Name)
-	assert.Equal(t, "a built-in tool", tools[0].Definition.Description)
+	assert.Equal(t, "fake_tool", tools[0].Name)
+	assert.Equal(t, "a built-in tool", tools[0].Description)
 
 	entries := runner.CommandEntries()
 	require.Len(t, entries, 1)

@@ -47,7 +47,7 @@ func TestRunOptionsFromFlags(t *testing.T) {
 	assert.Equal(t, 10, opts.maxRounds)
 	assert.Equal(t, 10*time.Minute, opts.timeout)
 	assert.Equal(t, "abc123", opts.session)
-	assert.Equal(t, []string{"grep"}, toolNames(opts.builtinTools)) // read is plugin-served, not selectable
+	assert.Empty(t, toolNames(opts.builtinTools)) // grep and read are plugin-served, not selectable
 	assert.False(t, opts.continueLast)
 }
 
@@ -58,7 +58,7 @@ func TestRunOptionsFromFlagsEqualsForms(t *testing.T) {
 		"--timeout=1500ms",
 		"--session-dir=/tmp/sess",
 		"--continue-last",
-		"--tools=write,bash",
+		"--tools=write,bash", // all plugin-served; accepted but does not change core list
 	})
 	require.NoError(t, err)
 	opts, err := runOptionsFromFlags(f)
@@ -68,7 +68,7 @@ func TestRunOptionsFromFlagsEqualsForms(t *testing.T) {
 	assert.Equal(t, 1500*time.Millisecond, opts.timeout)
 	assert.Equal(t, "/tmp/sess", opts.sessionDir)
 	assert.True(t, opts.continueLast)
-	assert.Equal(t, []string{"bash", "write"}, toolNames(opts.builtinTools))
+	assert.Empty(t, toolNames(opts.builtinTools)) // all tools are plugin-served
 }
 
 func TestRunCommandParseErrors(t *testing.T) {
@@ -121,7 +121,7 @@ func TestRunOptionsLeavesBuiltinToolsUnsetByDefault(t *testing.T) {
 func toolNames(list []tools.Tool) []string {
 	names := make([]string, 0, len(list))
 	for _, tool := range list {
-		names = append(names, tool.Definition.Name)
+		names = append(names, tool.Name)
 	}
 	return names
 }
@@ -133,7 +133,7 @@ func TestSelectBuiltinToolsErrorListsAvailableNames(t *testing.T) {
 	assert.ErrorContains(
 		t,
 		err,
-		"available: "+strings.Join(append(pluginToolNames(), toolNames(tools.DefaultTools())...), ", "),
+		"available: "+strings.Join(pluginToolNames(), ", "),
 	)
 }
 

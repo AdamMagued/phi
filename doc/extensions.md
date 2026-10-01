@@ -396,7 +396,7 @@ Subprocess (PXB) extensions cannot contribute prompt blocks — the wire protoco
 
 Built-in plugins are also exempt from the subprocess rule that a plugin may only deny: they run in-process and on the fast path. Keep the permission gate in the host regardless.
 
-Current built-in plugins: MCP (`internal/mcp/plugin.go`) — the three meta-tools plus the server-name prompt block.
+Current built-in plugins: MCP (`internal/mcp/plugin.go`) — the three meta-tools plus the server-name prompt block — and every built-in file/shell tool: `readtool`, `lstool`, `findtool`, `bashtool`, `greptool`, and `writetool` (edit + write). Each exposes `Tool()` (the `ext.Tool` definition) and a one-line `Plugin()` built with `extension.ToolPlugin`; the main engine merges them via the bus (no conversion — the bus returns SDK tools), sub-agents list them directly.
 
 ## Migration from yaegi
 

@@ -12,9 +12,10 @@ import (
 	"strconv"
 	"strings"
 
+	ext "github.com/pulseaiclub/phi/ext/go"
+	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 
-	"github.com/pulseaiclub/phi/internal/llm"
 	"github.com/pulseaiclub/phi/internal/util"
 )
 
@@ -41,56 +42,54 @@ Examples:
 {"path":"src/app.py","hash":"A1B2","edits":[{"from":"5#abc","to":"8#def","content":"  combined = True"}]}
 {"path":"src/app.py","hash":"A1B2","edits":[{"from":"3#ghi","to":"3#ghi","content":"  x = 1\n  # new comment"}]}`
 
-// EditTool returns the edit (hashline) tool definition + handler.
-func EditTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "edit",
-			Description: editDescription,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"path": llm.Object{
-						"type":        "string",
-						"description": "File to edit; use the same path passed to read.",
-					},
-					"hash": llm.Object{
-						"type":        "string",
-						"description": "4 hex chars after # in @file path#TAG (e.g. A1B2). No @file, no #, no path.",
-					},
-					"edits": llm.Object{
-						"type":        "array",
-						"description": "Edits in document order against the same original snapshot.",
-						"items": llm.Object{
-							"type": "object",
-							"properties": llm.Object{
-								"content": llm.Object{
-									"type":        "string",
-									"description": "Replacement lines (use \\n for multiple lines). Omit to delete the range.",
-								},
-								"from": llm.Object{
-									"type":        "string",
-									"description": "LINE#HASH for range start (e.g. 5#abc). Do not include |content.",
-								},
-								"to": llm.Object{
-									"type":        "string",
-									"description": "LINE#HASH for range end inclusive (e.g. 8#def). Do not include |content.",
-								},
+// EditTool returns the edit tool definition in the ext API shape.
+func EditTool() ext.Tool {
+	return ext.Tool{
+		Name:        "edit",
+		Description: editDescription,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "File to edit; use the same path passed to read.",
+				},
+				"hash": map[string]any{
+					"type":        "string",
+					"description": "4 hex chars after # in @file path#TAG (e.g. A1B2). No @file, no #, no path.",
+				},
+				"edits": map[string]any{
+					"type":        "array",
+					"description": "Edits in document order against the same original snapshot.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"content": map[string]any{
+								"type":        "string",
+								"description": "Replacement lines (use \n for multiple lines). Omit to delete the range.",
 							},
-							"required":             []string{"from", "to"},
-							"additionalProperties": true,
+							"from": map[string]any{
+								"type":        "string",
+								"description": "LINE#HASH for range start (e.g. 5#abc). Do not include |content.",
+							},
+							"to": map[string]any{
+								"type":        "string",
+								"description": "LINE#HASH for range end inclusive (e.g. 8#def). Do not include |content.",
+							},
 						},
+						"required":             []string{"from", "to"},
+						"additionalProperties": true,
 					},
 				},
-				Required: []string{"path", "hash", "edits"},
 			},
+			"required": []string{"path", "hash", "edits"},
 		},
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in EditInput
 			_ = json.Unmarshal(input, &in)
 			return fmt.Sprintf("%s --edits %d", strings.TrimSpace(in.Path), len(in.Edits))
 		},
-		Run: runEdit,
+		Execute: runEdit,
 	}
 }
 
@@ -130,15 +129,15 @@ type HashlineMismatchError struct {
 
 func (e *HashlineMismatchError) Error() string { return e.msg }
 
-func runEdit(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+func runEdit(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 	param, err := parseEditInput(ctx, input)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	content, err := os.ReadFile(param.Path)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 	fileContent := util.NormalizeLF(string(content))
 
@@ -146,13 +145,13 @@ func runEdit(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	actualTag := util.ComputeFileHash(fileContent)
 	expectedTag := normalizeFileTag(param.Hash)
 	if expectedTag == "" {
-		return tooldef.Result{}, fmt.Errorf(
+		return ext.ToolResult{}, fmt.Errorf(
 			"edit requires hash: the 4 hex chars after # in the @file path#TAG header from read/grep (e.g. A1B2 from %s)",
 			util.FormatFileHeader(display, actualTag),
 		)
 	}
 	if expectedTag != actualTag {
-		return tooldef.Result{}, fmt.Errorf(
+		return ext.ToolResult{}, fmt.Errorf(
 			"file TAG mismatch: edit.hash=%s but current file is %s. Re-read the file for a fresh TAG and anchors before retrying",
 			expectedTag,
 			util.FormatFileHeader(display, actualTag),
@@ -161,12 +160,12 @@ func runEdit(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 
 	newContent, err := ApplyHashlineEdit(ctx, fileContent, param)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	//nolint:gosec // G306: source files should stay world-readable
 	if err := os.WriteFile(param.Path, []byte(newContent), 0o644); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to write file %s: %w", param.Path, err)
+		return ext.ToolResult{}, fmt.Errorf("failed to write file %s: %w", param.Path, err)
 	}
 
 	newTag := util.ComputeFileHash(newContent)
@@ -175,7 +174,7 @@ func runEdit(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 		"\nRe-read this file before another edit; prior LINE#HASH anchors are invalid.\n\n" +
 		diff
 
-	return tooldef.Result{
+	return ext.ToolResult{
 		Content: body,
 		Detail:  fmt.Sprintf("%s --edits %d", display, len(param.Edits)),
 		Output:  body,
@@ -430,4 +429,10 @@ func newHashlineMismatchError(mismatches []HashMismatch, fileLines []string) *Ha
 		mismatches: mismatches,
 		msg:        b.String(),
 	}
+}
+
+// Plugin adapts the edit and write tools to the built-in plugin bus.
+// The tools own no resources, so the plugin carries no Close.
+func Plugin() extension.Plugin {
+	return extension.ToolPlugin(EditTool(), WriteTool())
 }

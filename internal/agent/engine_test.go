@@ -79,12 +79,9 @@ func fakeToolSequenceServer(finalAfter int) (*httptest.Server, *atomic.Int32) {
 
 func countingTool(runs *atomic.Int32) tools.Tool {
 	return tools.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "count",
-			Description: "count tool executions",
-			Params:      &llm.FunctionParameters{Type: "object"},
-		},
-		Run: func(context.Context, json.RawMessage) (tools.Result, error) {
+		Name:        "count",
+		Description: "count tool executions",
+		Execute: func(context.Context, json.RawMessage) (tools.Result, error) {
 			runs.Add(1)
 			return tools.Result{Content: "ok"}, nil
 		},
@@ -562,12 +559,9 @@ func sentContent(body map[string]any) string {
 // the threshold on its own.
 func bulkyTool() tools.Tool {
 	return tools.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "count",
-			Description: "answer with a large payload",
-			Params:      &llm.FunctionParameters{Type: "object"},
-		},
-		Run: func(context.Context, json.RawMessage) (tools.Result, error) {
+		Name:        "count",
+		Description: "answer with a large payload",
+		Execute: func(context.Context, json.RawMessage) (tools.Result, error) {
 			return tools.Result{Content: strings.Repeat("y", 12000)}, nil
 		},
 	}

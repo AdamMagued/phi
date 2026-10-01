@@ -20,3 +20,14 @@ type Plugin struct {
 	// subprocesses are gone. Nil means the plugin owns nothing.
 	Close func() error
 }
+
+// ToolPlugin builds a built-in plugin that registers tools on a fresh API.
+// Stateless tool plugins are pure registration; plugins that own resources
+// (e.g. the MCP pool) hand-roll Plugin and set Close themselves.
+func ToolPlugin(defs ...ext.Tool) Plugin {
+	api := ext.NewAPI()
+	for _, def := range defs {
+		api.RegisterTool(def)
+	}
+	return Plugin{API: api}
+}

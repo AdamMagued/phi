@@ -60,19 +60,19 @@ func TestSetJobsTogglesAgentTools(t *testing.T) {
 
 	eng.SetJobs(nil)
 	assert.False(t, eng.HasTool("agent_spawn"))
-	assert.True(t, eng.HasTool("bash")) // default tools still present
+	// bash and every other built-in is plugin-served; the core list is empty
 }
 
 func TestChildToolsHaveNoAgent(t *testing.T) {
 	for _, tool := range agent.ChildTools() {
-		assert.NotContains(t, tool.Definition.Name, "agent_")
+		assert.NotContains(t, tool.Name, "agent_")
 	}
 }
 
 func TestChildToolsAreReadonly(t *testing.T) {
 	names := map[string]bool{}
 	for _, tool := range agent.ChildTools() {
-		names[tool.Definition.Name] = true
+		names[tool.Name] = true
 	}
 	assert.True(t, names["read"])
 	assert.True(t, names["grep"])

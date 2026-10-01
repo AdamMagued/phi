@@ -32,7 +32,7 @@ Prefer this over bash find/ls for filename search.`,
 
 // Tool returns the find tool definition in the ext API shape. It is the
 // single source of truth: the plugin bus serves it to main engines, and
-// sub-agent ChildSpec lists adapt it via extension.ToolFromDef.
+// sub-agent ChildSpec lists use it directly.
 func Tool() ext.Tool {
 	return ext.Tool{
 		Name:        "find",
@@ -72,27 +72,14 @@ func Tool() ext.Tool {
 			}
 			return "find"
 		},
-		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
-			res, err := runFind(ctx, input)
-			if err != nil {
-				return ext.ToolResult{}, err
-			}
-			return ext.ToolResult{
-				Content:  res.Content,
-				Detail:   res.Detail,
-				Output:   res.Output,
-				Expanded: res.Expanded,
-			}, nil
-		},
+		Execute: runFind,
 	}
 }
 
-// Plugin adapts the find tool to the built-in plugin bus, mirroring mcp.Plugin.
-// Find owns no resources, so the plugin carries no Close.
+// Plugin adapts the find tool to the built-in plugin bus. Find owns no
+// resources, so the plugin carries no Close.
 func Plugin() extension.Plugin {
-	api := ext.NewAPI()
-	api.RegisterTool(Tool())
-	return extension.Plugin{API: api}
+	return extension.ToolPlugin(Tool())
 }
 
 type findInput struct {
@@ -101,14 +88,14 @@ type findInput struct {
 	Limit   int    `json:"limit,omitempty"`
 }
 
-func runFind(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+func runFind(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 	var in findInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to parse find arguments: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("failed to parse find arguments: %w", err)
 	}
 	pattern := strings.TrimSpace(in.Pattern)
 	if pattern == "" {
-		return tooldef.Result{}, errors.New("pattern is required: provide a glob such as *.go or **/*.md")
+		return ext.ToolResult{}, errors.New("pattern is required: provide a glob such as *.go or **/*.md")
 	}
 
 	searchPath := strings.TrimSpace(in.Path)
@@ -117,15 +104,15 @@ func runFind(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	}
 	absPath, err := tooldef.ResolveToCwd(ctx, searchPath)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	info, err := os.Stat(absPath)
 	if err != nil {
-		return tooldef.Result{}, fmt.Errorf("path not found: %s. Provide an existing directory", absPath)
+		return ext.ToolResult{}, fmt.Errorf("path not found: %s. Provide an existing directory", absPath)
 	}
 	if !info.IsDir() {
-		return tooldef.Result{}, fmt.Errorf("path is not a directory: %s (find expects a directory path)", absPath)
+		return ext.ToolResult{}, fmt.Errorf("path is not a directory: %s (find expects a directory path)", absPath)
 	}
 
 	limit := in.Limit
@@ -135,14 +122,14 @@ func runFind(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 
 	files, truncated, err := runFD(ctx, pattern, absPath, limit)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	for i, p := range files {
 		files[i] = tooldef.RelToCwd(ctx, p)
 	}
 	content := renderFindResult(files, truncated, limit)
-	return tooldef.Result{
+	return ext.ToolResult{
 		Content: content,
 		Detail:  fmt.Sprintf("%d files", len(files)),
 		Output:  content,
