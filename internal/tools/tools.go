@@ -3,9 +3,7 @@ package tools
 import (
 	"github.com/pulseaiclub/phi/internal/tools/agenttool"
 	"github.com/pulseaiclub/phi/internal/tools/bashtool"
-	"github.com/pulseaiclub/phi/internal/tools/findtool"
 	"github.com/pulseaiclub/phi/internal/tools/greptool"
-	"github.com/pulseaiclub/phi/internal/tools/lstool"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 	"github.com/pulseaiclub/phi/internal/tools/writetool"
 )
@@ -64,14 +62,13 @@ var (
 	ParseAgentResult = agenttool.ParseAgentResult
 )
 
-// DefaultTools returns the core built-in tool set. read is not part of it: it
-// ships as a built-in plugin (internal/tools/readtool.Plugin) and reaches main
-// engines through the extension bus; sub-agent profiles add it explicitly.
+// DefaultTools returns the core built-in tool set. read, ls, and find are
+// not part of it: they ship as built-in plugins (internal/tools/readtool.Plugin,
+// internal/tools/lstool.Plugin, and internal/tools/findtool.Plugin) and reach
+// main engines through the extension bus; sub-agent profiles add them explicitly.
 func DefaultTools() []Tool {
 	return []Tool{
 		greptool.GrepTool(),
-		findtool.FindTool(),
-		lstool.LsTool(),
 		writetool.EditTool(),
 		bashtool.BashTool(),
 		writetool.WriteTool(),
@@ -85,7 +82,5 @@ func ReadonlyTools() []Tool {
 	return []Tool{
 		bashtool.BashTool(),
 		greptool.GrepTool(),
-		lstool.LsTool(),
-		findtool.FindTool(),
 	}
 }

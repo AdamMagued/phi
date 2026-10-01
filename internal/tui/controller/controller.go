@@ -22,6 +22,8 @@ import (
 	"github.com/pulseaiclub/phi/internal/project"
 	"github.com/pulseaiclub/phi/internal/project/model"
 	"github.com/pulseaiclub/phi/internal/session"
+	"github.com/pulseaiclub/phi/internal/tools/findtool"
+	"github.com/pulseaiclub/phi/internal/tools/lstool"
 	"github.com/pulseaiclub/phi/internal/tools/mcp"
 	"github.com/pulseaiclub/phi/internal/tools/readtool"
 )
@@ -279,6 +281,8 @@ func loadExtensions(proj *project.Project) *extension.Runner {
 	// Built-in plugins load before discovered extensions merge their tools,
 	// and read stays ahead of mcp_* in the merged schema order.
 	r.AddPlugin(readtool.Plugin())
+	r.AddPlugin(lstool.Plugin())
+	r.AddPlugin(findtool.Plugin())
 	// The runner owns plugin resources, so quitting closes the MCP pool too.
 	r.AddPlugin(mcp.Plugin(loadMCPPool(proj)))
 	return r

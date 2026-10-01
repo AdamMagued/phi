@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"strings"
 
+	ext "github.com/pulseaiclub/phi/ext/go"
+	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
-
-	"github.com/pulseaiclub/phi/internal/llm"
 	"github.com/pulseaiclub/phi/internal/util/filesearch"
 )
 
@@ -30,35 +30,35 @@ Prefer this over bash find/ls for filename search.`,
 	defaultFindLimit,
 )
 
-// FindTool returns the find tool definition + handler.
-func FindTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "find",
-			Description: findDescription,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"path": llm.Object{
-						"type":        "string",
-						"description": "Directory to search. Example: ./src",
-					},
-					"pattern": llm.Object{
-						"type":        "string",
-						"description": "Glob pattern. Example: **/*.go",
-					},
-					"limit": llm.Object{
-						"type": "integer",
-						"description": fmt.Sprintf(
-							"Maximum results to return. Example: 50 (default: %d)",
-							defaultFindLimit,
-						),
-					},
+// Tool returns the find tool definition in the ext API shape. It is the
+// single source of truth: the plugin bus serves it to main engines, and
+// sub-agent ChildSpec lists adapt it via extension.ToolFromDef.
+func Tool() ext.Tool {
+	return ext.Tool{
+		Name:        "find",
+		Description: findDescription,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Directory to search. Example: ./src",
 				},
-				Required: []string{"pattern"},
+				"pattern": map[string]any{
+					"type":        "string",
+					"description": "Glob pattern. Example: **/*.go",
+				},
+				"limit": map[string]any{
+					"type": "integer",
+					"description": fmt.Sprintf(
+						"Maximum results to return. Example: 50 (default: %d)",
+						defaultFindLimit,
+					),
+				},
 			},
-			Readable: true,
+			"required": []string{"pattern"},
 		},
+		Readable: true,
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in findInput
 			_ = json.Unmarshal(input, &in)
@@ -72,8 +72,27 @@ func FindTool() tooldef.Tool {
 			}
 			return "find"
 		},
-		Run: runFind,
+		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
+			res, err := runFind(ctx, input)
+			if err != nil {
+				return ext.ToolResult{}, err
+			}
+			return ext.ToolResult{
+				Content:  res.Content,
+				Detail:   res.Detail,
+				Output:   res.Output,
+				Expanded: res.Expanded,
+			}, nil
+		},
 	}
+}
+
+// Plugin adapts the find tool to the built-in plugin bus, mirroring mcp.Plugin.
+// Find owns no resources, so the plugin carries no Close.
+func Plugin() extension.Plugin {
+	api := ext.NewAPI()
+	api.RegisterTool(Tool())
+	return extension.Plugin{API: api}
 }
 
 type findInput struct {

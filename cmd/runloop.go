@@ -20,6 +20,8 @@ import (
 	"github.com/pulseaiclub/phi/internal/project/model"
 	"github.com/pulseaiclub/phi/internal/session"
 	"github.com/pulseaiclub/phi/internal/tools"
+	"github.com/pulseaiclub/phi/internal/tools/findtool"
+	"github.com/pulseaiclub/phi/internal/tools/lstool"
 	"github.com/pulseaiclub/phi/internal/tools/mcp"
 	"github.com/pulseaiclub/phi/internal/tools/readtool"
 )
@@ -78,6 +80,8 @@ func runHeadless(opts runOptions) error {
 	// The runner owns plugin resources, so the deferred Close also closes MCP.
 	defer extRunner.Close()
 	extRunner.AddPlugin(readtool.Plugin())
+	extRunner.AddPlugin(lstool.Plugin())
+	extRunner.AddPlugin(findtool.Plugin())
 	engineOpts := []agent.EngineOption{
 		agent.WithGate(bs.Gate),
 		agent.WithExtensions(extRunner),
@@ -293,7 +297,7 @@ func selectBuiltinTools(raw string) ([]tools.Tool, error) {
 // core DefaultTools list. The name comes from the definition, so renaming the
 // tool keeps the flag in sync.
 func pluginToolNames() []string {
-	return []string{readtool.Tool().Name}
+	return []string{readtool.Tool().Name, lstool.Tool().Name, findtool.Tool().Name}
 }
 
 // jsonlEncoder writes the pinned event schema to a writer. Fields are

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
+	ext "github.com/pulseaiclub/phi/ext/go"
+	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
-
-	"github.com/pulseaiclub/phi/internal/llm"
 )
 
 const (
@@ -27,39 +27,58 @@ const (
 	defaultMaxDepth = 3
 )
 
-// LsTool returns the ls tool definition + handler.
-func LsTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "ls",
-			Description: lsDescription,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"path": llm.Object{
-						"type":        "string",
-						"description": "Directory to list. Example: . or src",
-					},
-					"limit": llm.Object{
-						"type":        "integer",
-						"description": "Max files to scan. Example: 100 (default: 500)",
-					},
-					"max_depth": llm.Object{
-						"type":        "integer",
-						"description": "Max directory depth to expand. Example: 2 (default: 3)",
-					},
+// Tool returns the ls tool definition in the ext API shape. It is the
+// single source of truth: the plugin bus serves it to main engines, and
+// sub-agent ChildSpec lists adapt it via extension.ToolFromDef.
+func Tool() ext.Tool {
+	return ext.Tool{
+		Name:        "ls",
+		Description: lsDescription,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Directory to list. Example: . or src",
 				},
-				Required: []string{"path"},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Max files to scan. Example: 100 (default: 500)",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Max directory depth to expand. Example: 2 (default: 3)",
+				},
 			},
-			Readable: true,
+			"required": []string{"path"},
 		},
+		Readable: true,
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in lsInput
 			_ = json.Unmarshal(input, &in)
 			return strings.TrimSpace(in.Path)
 		},
-		Run: runLs,
+		Execute: func(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
+			res, err := runLs(ctx, input)
+			if err != nil {
+				return ext.ToolResult{}, err
+			}
+			return ext.ToolResult{
+				Content:  res.Content,
+				Detail:   res.Detail,
+				Output:   res.Output,
+				Expanded: res.Expanded,
+			}, nil
+		},
 	}
+}
+
+// Plugin adapts the ls tool to the built-in plugin bus, mirroring mcp.Plugin.
+// Ls owns no resources, so the plugin carries no Close.
+func Plugin() extension.Plugin {
+	api := ext.NewAPI()
+	api.RegisterTool(Tool())
+	return extension.Plugin{API: api}
 }
 
 type lsInput struct {
