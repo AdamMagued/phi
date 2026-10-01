@@ -1,9 +1,11 @@
 package agent
 
 import (
+	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/job"
 	"github.com/pulseaiclub/phi/internal/permission"
 	"github.com/pulseaiclub/phi/internal/tools"
+	"github.com/pulseaiclub/phi/internal/tools/readtool"
 )
 
 // ChildSpec is the capability profile for a sub-agent role.
@@ -19,6 +21,13 @@ func ChildTools() []tools.Tool {
 	return SpecForRole(job.RoleExplore).Tools
 }
 
+// withRead prepends the read tool to a child profile. Sub-agents register no
+// plugin tools, so read — implemented as a built-in plugin like mcp — has to
+// join the explicit list here.
+func withRead(list []tools.Tool) []tools.Tool {
+	return append([]tools.Tool{extension.ToolFromDef(readtool.Tool())}, list...)
+}
+
 // SpecForRole returns tools, permission mode, and closing hint for a role.
 func SpecForRole(role job.Role) ChildSpec {
 	role = job.NormalizeRole(string(role))
@@ -26,21 +35,21 @@ func SpecForRole(role job.Role) ChildSpec {
 	case job.RoleWorker:
 		return ChildSpec{
 			Role:  job.RoleWorker,
-			Tools: tools.DefaultTools(), // no agent_*; writable
+			Tools: withRead(tools.DefaultTools()), // no agent_*; writable
 			Mode:  permission.ModeHeadlessStrict,
 			Hint:  workerSummaryHint,
 		}
 	case job.RoleReview:
 		return ChildSpec{
 			Role:  job.RoleReview,
-			Tools: tools.ReadonlyTools(),
+			Tools: withRead(tools.ReadonlyTools()),
 			Mode:  permission.ModeReadonly,
 			Hint:  reviewSummaryHint,
 		}
 	default:
 		return ChildSpec{
 			Role:  job.RoleExplore,
-			Tools: tools.ReadonlyTools(),
+			Tools: withRead(tools.ReadonlyTools()),
 			Mode:  permission.ModeReadonly,
 			Hint:  exploreSummaryHint,
 		}

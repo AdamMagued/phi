@@ -25,6 +25,7 @@ import (
 	"github.com/pulseaiclub/phi/internal/permission"
 	"github.com/pulseaiclub/phi/internal/session"
 	"github.com/pulseaiclub/phi/internal/tools"
+	"github.com/pulseaiclub/phi/internal/tools/readtool"
 )
 
 func TestRunOptionsFromFlags(t *testing.T) {
@@ -46,7 +47,7 @@ func TestRunOptionsFromFlags(t *testing.T) {
 	assert.Equal(t, 10, opts.maxRounds)
 	assert.Equal(t, 10*time.Minute, opts.timeout)
 	assert.Equal(t, "abc123", opts.session)
-	assert.Equal(t, []string{"read", "grep"}, toolNames(opts.builtinTools))
+	assert.Equal(t, []string{"grep"}, toolNames(opts.builtinTools)) // read is plugin-served, not selectable
 	assert.False(t, opts.continueLast)
 }
 
@@ -129,7 +130,11 @@ func TestSelectBuiltinToolsErrorListsAvailableNames(t *testing.T) {
 	_, err := selectBuiltinTools("read,nope,missing")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, `unknown built-in tools "missing", "nope"`)
-	assert.ErrorContains(t, err, "available: "+strings.Join(toolNames(tools.DefaultTools()), ", "))
+	assert.ErrorContains(
+		t,
+		err,
+		"available: "+strings.Join(append(pluginToolNames(), toolNames(tools.DefaultTools())...), ", "),
+	)
 }
 
 func TestSelectedBuiltinToolsStillAppendExternalTools(t *testing.T) {
@@ -141,6 +146,7 @@ func TestSelectedBuiltinToolsStillAppendExternalTools(t *testing.T) {
 	// The runner owns the pool, so its Close is the only cleanup needed.
 	runner := extension.NewRunner()
 	t.Cleanup(runner.Close)
+	runner.AddPlugin(readtool.Plugin())
 	runner.AddPlugin(mcp.Plugin(pool))
 	jobs, err := job.New(job.Options{
 		Root: t.TempDir(),

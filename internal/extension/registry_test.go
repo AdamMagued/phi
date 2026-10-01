@@ -92,8 +92,8 @@ func TestListInstalledEmptyOrMissingDir(t *testing.T) {
 }
 
 func TestToolFromDefReadable(t *testing.T) {
-	got := toolFromDef(ext.Tool{Name: "read", Readable: true})
+	got := ToolFromDef(ext.Tool{Name: "read", Readable: true})
 	assert.True(t, got.Definition.Readable)
 	assert.Equal(t, "read", got.Definition.Name)
-	assert.False(t, toolFromDef(ext.Tool{Name: "write"}).Definition.Readable)
+	assert.False(t, ToolFromDef(ext.Tool{Name: "write"}).Definition.Readable)
 }

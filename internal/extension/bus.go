@@ -226,13 +226,16 @@ func (b *bus) ExtensionTools() []tools.Tool {
 	var out []tools.Tool
 	for _, api := range b.apis {
 		for _, def := range api.Tools() {
-			out = append(out, toolFromDef(def))
+			out = append(out, ToolFromDef(def))
 		}
 	}
 	return out
 }
 
-func toolFromDef(def ext.Tool) tools.Tool {
+// ToolFromDef converts an extension tool definition to the host tools.Tool
+// shape. The bus uses it for every plugin tool; consumers that bypass the bus
+// (sub-agent ChildSpec lists, which register no plugin tools) call it directly.
+func ToolFromDef(def ext.Tool) tools.Tool {
 	params := schemaFromMap(def.Parameters)
 	exec := def.Execute
 	return tools.Tool{

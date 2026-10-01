@@ -21,6 +21,7 @@ import (
 	"github.com/pulseaiclub/phi/internal/project/model"
 	"github.com/pulseaiclub/phi/internal/session"
 	"github.com/pulseaiclub/phi/internal/tools"
+	"github.com/pulseaiclub/phi/internal/tools/readtool"
 )
 
 // runOptions holds parsed `phi run` flags.
@@ -70,9 +71,13 @@ func runHeadless(opts runOptions) error {
 	// approval UI is ever reachable (Ask≡Deny even if the config mode
 	// does not fold Ask).
 	extRunner := loadRunExtensions(bs)
-	if extRunner != nil {
-		defer extRunner.Close()
+	if extRunner == nil {
+		// No project: discovery is unavailable, but built-in plugins still load.
+		extRunner = extension.NewRunner()
 	}
+	// The runner owns plugin resources, so the deferred Close also closes MCP.
+	defer extRunner.Close()
+	extRunner.AddPlugin(readtool.Plugin())
 	engineOpts := []agent.EngineOption{
 		agent.WithGate(bs.Gate),
 		agent.WithExtensions(extRunner),
@@ -166,7 +171,7 @@ func loadRunExtensions(bs *runBootstrap) *extension.Runner {
 			fmt.Fprintln(os.Stderr, "  ", w.String())
 		}
 	}
-	// The runner owns plugin resources, so the deferred Close also closes MCP.
+	// Discovery is best-effort; the MCP pool rides on the same runner.
 	pool, err := mcp.LoadPool(bs.Proj.MCPConfigFile())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "warning: mcp:", err)
@@ -242,8 +247,15 @@ func selectBuiltinTools(raw string) ([]tools.Tool, error) {
 		requested[name] = struct{}{}
 	}
 
+	// Built-in plugin tools always load via the extension bus, so naming them
+	// here is accepted but does not change the core list.
+	pluginNames := pluginToolNames()
+	available := append([]string{}, pluginNames...)
+	for _, name := range pluginNames {
+		delete(requested, name)
+	}
+
 	defaults := tools.DefaultTools()
-	available := make([]string, 0, len(defaults))
 	selected := make([]tools.Tool, 0, len(requested))
 	// Keep the default schema order stable regardless of flag order; the map
 	// also collapses duplicate names without exposing duplicate definitions.
@@ -275,6 +287,13 @@ func selectBuiltinTools(raw string) ([]tools.Tool, error) {
 	}
 
 	return selected, nil
+}
+
+// pluginToolNames lists tool names served by built-in plugins instead of the
+// core DefaultTools list. The name comes from the definition, so renaming the
+// tool keeps the flag in sync.
+func pluginToolNames() []string {
+	return []string{readtool.Tool().Name}
 }
 
 // jsonlEncoder writes the pinned event schema to a writer. Fields are

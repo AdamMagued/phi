@@ -10,7 +10,7 @@ import (
 
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 
-	"github.com/pulseaiclub/phi/internal/llm"
+	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/util"
 )
 
@@ -29,38 +29,38 @@ Body lines are N#abc|content — copy N#abc into edit from/to, not the |content.
 Output body is capped at %d lines and %d KiB per call.`,
 	readDefaultMaxLines, readDefaultMaxBytes/1024)
 
-// ReadTool returns the read tool definition + handler.
-func ReadTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
-			Name:        "read",
-			Description: readDescription,
-			Params: &llm.FunctionParameters{
-				Type: "object",
-				Properties: llm.Object{
-					"path": llm.Object{
-						"type":        "string",
-						"description": "Path to an existing file. Example: src/main.go",
-					},
-					"offset": llm.Object{
-						"type":        "integer",
-						"description": "First line to return, 1-based. Example: 11",
-					},
-					"limit": llm.Object{
-						"type":        "integer",
-						"description": fmt.Sprintf("Maximum lines to return; capped at %d.", readDefaultMaxLines),
-					},
+// Tool returns the read tool definition in the ext API shape. It is the single
+// source of truth: the plugin bus serves it to main engines, and sub-agent
+// ChildSpec lists adapt it via extension.ToolFromDef.
+func Tool() ext.Tool {
+	return ext.Tool{
+		Name:        "read",
+		Description: readDescription,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Path to an existing file. Example: src/main.go",
 				},
-				Required: []string{"path"},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "First line to return, 1-based. Example: 11",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": fmt.Sprintf("Maximum lines to return; capped at %d.", readDefaultMaxLines),
+				},
 			},
-			Readable: true,
+			"required": []string{"path"},
 		},
 		DetailFromArgs: func(input json.RawMessage) string {
 			var in readInput
 			_ = json.Unmarshal(input, &in)
 			return strings.TrimSpace(in.Path)
 		},
-		Run: runRead,
+		Readable: true,
+		Execute:  runRead,
 	}
 }
 
@@ -70,26 +70,26 @@ type readInput struct {
 	Offset int    `json:"offset,omitempty"`
 }
 
-func runRead(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
+func runRead(ctx context.Context, input json.RawMessage) (ext.ToolResult, error) {
 	var in readInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to parse read arguments: %w", err)
+		return ext.ToolResult{}, fmt.Errorf("failed to parse read arguments: %w", err)
 	}
 	path := strings.TrimSpace(in.Path)
 	if path == "" {
-		return tooldef.Result{}, errors.New("path is required")
+		return ext.ToolResult{}, errors.New("path is required")
 	}
 	path, err := tooldef.ResolveToCwd(ctx, path)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 
 	st, err := os.Stat(path)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 	if st.Size() > readMaxHashBytes {
-		return tooldef.Result{}, fmt.Errorf(
+		return ext.ToolResult{}, fmt.Errorf(
 			"file %s is %d bytes; refuse to hash files larger than %d bytes for edit anchors",
 			path, st.Size(), readMaxHashBytes,
 		)
@@ -97,13 +97,13 @@ func runRead(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 
 	select {
 	case <-ctx.Done():
-		return tooldef.Result{}, ctx.Err()
+		return ext.ToolResult{}, ctx.Err()
 	default:
 	}
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return tooldef.Result{}, err
+		return ext.ToolResult{}, err
 	}
 	text := util.NormalizeLF(string(raw))
 	tag := util.ComputeFileHash(text)
@@ -121,7 +121,7 @@ func runRead(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	// Trailing empty split from final newline is fine for line numbering.
 	if text == "" {
 		out := header + "\n(empty file)"
-		return tooldef.Result{Content: out, Detail: display, Output: out}, nil
+		return ext.ToolResult{Content: out, Detail: display, Output: out}, nil
 	}
 
 	var (
@@ -135,7 +135,7 @@ func runRead(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	for lineNo := startLine; lineNo <= len(lines); lineNo++ {
 		select {
 		case <-ctx.Done():
-			return tooldef.Result{}, ctx.Err()
+			return ext.ToolResult{}, ctx.Err()
 		default:
 		}
 		line := lines[lineNo-1]
@@ -156,5 +156,5 @@ func runRead(ctx context.Context, input json.RawMessage) (tooldef.Result, error)
 	}
 
 	out := b.String()
-	return tooldef.Result{Content: out, Detail: display, Output: out}, nil
+	return ext.ToolResult{Content: out, Detail: display, Output: out}, nil
 }

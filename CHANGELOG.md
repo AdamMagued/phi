@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- The `read` tool now ships as a built-in extension plugin (`readtool.Plugin`) on the same bus as MCP instead of a hard-wired core tool. Sub-agents still get it via their explicit tool profile.
+- `phi run --tools` accepts plugin-served tool names (`read`) but no longer filters them out: built-in plugin tools always load via the extension bus.
+
 - Splash sphere now uses the aurora gradient instead of always green.
 - System prompt drops the "in a shared workspace" wording; it carried no signal.
 - System prompt reserves `bash` for real binaries and short fact pipelines;
