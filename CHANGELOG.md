@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Hashline `edit` description now matches mismatch behavior: retry a `LINE#HASH`
+  mismatch with the error's updated references; re-read on a file TAG mismatch.
+
 ### Deprecated
 
 ### Removed
