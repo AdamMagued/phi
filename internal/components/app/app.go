@@ -32,9 +32,6 @@ func NewApp(vx *xui.XUI) *App {
 
 // RequestRedraw schedules a frame from any goroutine (stream updates, etc).
 func (a *App) RequestRedraw() {
-	if a == nil {
-		return
-	}
 	if a.loop != nil {
 		a.loop.Post(xui.TickEvent{})
 		return
@@ -243,9 +240,6 @@ func surfaceHasWidget(s components.Surface, w components.Widget) bool {
 
 // RequestFocus moves keyboard focus to w (nil = root). Safe from the UI goroutine.
 func (a *App) RequestFocus(w components.Widget) {
-	if a == nil {
-		return
-	}
 	if w == nil {
 		w = a.root
 	}

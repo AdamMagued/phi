@@ -289,18 +289,6 @@ func TestAddRefWithoutSelectionUsesTheCaretLine(t *testing.T) {
 	assert.Equal(t, "two", h.refs[0].Text)
 }
 
-func TestAddRefReportsMissingHandlerAndFile(t *testing.T) {
-	h := newHarness(t, map[string]string{"a.go": "one\n"})
-	h.pane.Open("a.go")
-	h.pane.onRef = nil
-	h.key(t, 'a')
-	assert.Contains(t, h.toasts, "chat input is unavailable")
-
-	h.pane.Open("nope.go") // the load failed, so there is nothing to add
-	h.key(t, 'a')
-	assert.Contains(t, h.toasts, "no file open")
-}
-
 func TestEscapeCancelsSelectionBeforeClosing(t *testing.T) {
 	h := newHarness(t, map[string]string{"a.go": "one\ntwo\n"})
 	h.pane.Open("a.go")

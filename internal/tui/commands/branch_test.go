@@ -16,7 +16,9 @@ import (
 
 func TestBranchCommandRegistersSlash(t *testing.T) {
 	r := NewCommandRegistry()
-	NewBranchCommands(controller.NewBus(nil)).Register(r)
+	b := NewBranchCommands(controller.NewBus(nil))
+	b.OpenOverlay = func([]gitx.Branch, []string, func(string)) {}
+	b.Register(r)
 
 	assert.Equal(t, "/branch ", r.LookupInsert("branch"))
 	assert.True(t, r.DispatchSlash("/branch", NewContext(controller.NewBus(nil), nil)))

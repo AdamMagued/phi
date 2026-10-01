@@ -102,9 +102,6 @@ func ExtractSurfaceText(s Surface, ax, ay, ex, ey int) string {
 
 // ApplySelectionHighlight tints selected cells with style.Bg (and optional Fg).
 func ApplySelectionHighlight(s *Surface, ax, ay, ex, ey int, style xui.Style) {
-	if s == nil {
-		return
-	}
 	applySelHighlight(s, 0, 0, ax, ay, ex, ey, style)
 }
 
@@ -166,9 +163,10 @@ func flattenSurface(s Surface, dst []xui.Cell, w, h, ox, oy int) {
 	}
 }
 
-// ApplyBlockHighlight tints an entire surface (selected message block).
+// Buffer may be nil: aggregate surfaces built as literals (no NewSurface)
+// carry no cells of their own and only paint children.
 func ApplyBlockHighlight(s *Surface, style xui.Style) {
-	if s == nil || s.Buffer == nil {
+	if s.Buffer == nil {
 		return
 	}
 	for i := range s.Buffer {

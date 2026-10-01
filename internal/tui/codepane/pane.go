@@ -85,17 +85,11 @@ func New(theme components.Theme, cwd string, onRef func(chat.Ref), onToast func(
 
 // Active reports whether the overlay is showing.
 func (p *Pane) Active() bool {
-	if p == nil {
-		return false
-	}
 	return p.active
 }
 
 // SetTheme updates chrome and syntax colors.
 func (p *Pane) SetTheme(th components.Theme) {
-	if p == nil {
-		return
-	}
 	p.theme = th
 	p.hl = codeview.Highlight(p.abs, p.lines, th)
 }
@@ -107,9 +101,6 @@ func (p *Pane) Open(path string) {
 
 // OpenAt shows path with the cursor on line (1-based; 0 leaves it at the top).
 func (p *Pane) OpenAt(path string, line int) {
-	if p == nil {
-		return
-	}
 	p.active = true
 	p.pendingG = false
 	p.selecting = false
@@ -125,16 +116,13 @@ func (p *Pane) OpenAt(path string, line int) {
 
 // Close hides the overlay.
 func (p *Pane) Close() {
-	if p == nil {
-		return
-	}
 	p.active = false
 	p.pendingG = false
 }
 
 // Handle consumes keyboard input while the overlay is active.
 func (p *Pane) Handle(ctx *components.EventContext, ev xui.Event) {
-	if p == nil || !p.Active() {
+	if !p.Active() {
 		return
 	}
 	switch e := ev.(type) {
@@ -257,7 +245,7 @@ func (p *Pane) handleRune(ctx *components.EventContext, r rune) string {
 }
 
 func (p *Pane) notify(msg string) {
-	if msg != "" && p.onToast != nil {
+	if msg != "" {
 		p.onToast(msg)
 	}
 }
@@ -518,9 +506,6 @@ func (p *Pane) addRef() string {
 	if !ok {
 		return "no file open"
 	}
-	if p.onRef == nil {
-		return "chat input is unavailable"
-	}
 	p.selecting = false
 	p.onRef(ref)
 	return fmt.Sprintf("added %s to chat", ref.Label())
@@ -551,9 +536,6 @@ func fenceLang(path string) string {
 
 // Draw paints the overlay.
 func (p *Pane) Draw(ctx components.DrawContext) components.Surface {
-	if p == nil {
-		return components.NewSurface(ctx.Max.Width, ctx.Max.Height, nil)
-	}
 	p.method = ctx.Method
 	p.viewW = ctx.Max.Width
 	p.viewH = max(ctx.Max.Height-2, 1)

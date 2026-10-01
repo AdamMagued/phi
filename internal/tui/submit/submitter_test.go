@@ -4,12 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/pulseaiclub/phi/internal/components"
 	"github.com/pulseaiclub/phi/internal/components/chat"
 	"github.com/pulseaiclub/phi/internal/components/status"
-	"github.com/pulseaiclub/phi/internal/session"
 	"github.com/pulseaiclub/phi/internal/tui/commands"
 	"github.com/pulseaiclub/phi/internal/tui/controller"
 	"github.com/pulseaiclub/phi/internal/tui/transcript"
@@ -35,6 +33,9 @@ func (stubComposer) SyncBashBorder(string)                 {}
 func (stubComposer) CloseMentionSlash()                    {}
 func (stubComposer) SetBashBorderActive(bool)              {}
 
+// newTestSubmitter wires a Submitter over a zero EngineController: SessionDir
+// is empty, so no shell history is created. Tests must not reach
+// StartPrompt — that path needs a live controller.
 func newTestSubmitter(
 	t *testing.T,
 	tp *transcript.TranscriptPane,
@@ -47,7 +48,7 @@ func newTestSubmitter(
 		composer = &stubComposer{}
 	}
 	return NewSubmitter(
-		nil,
+		&controller.EngineController{},
 		cmds,
 		tp,
 		activity,
@@ -58,6 +59,11 @@ func newTestSubmitter(
 		nil, nil, nil,
 	)
 }
+
+// Tests driving Submit all the way into the agent hop were removed with the
+// Submitter's nil guards: they only passed because a nil ctrl silently no-oped
+// in handleUserInput, and a zero EngineController crashes runLoop for lack of
+// a bus. That hop is covered by the editor-level tests.
 
 func TestSubmitter_IsBusy(t *testing.T) {
 	th := components.DefaultTheme()
@@ -76,27 +82,6 @@ func TestSubmitter_StreamActive_activity(t *testing.T) {
 	assert.True(t, sub.StreamActive())
 }
 
-func TestSubmitter_Submit_unknownSlashFallsThroughToAgent(t *testing.T) {
-	th := components.DefaultTheme()
-	spin := status.NewSpinner(th.ToolName)
-	tp := transcript.NewTranscriptPane(th, spin, "Phi test")
-	sub := newTestSubmitter(t, tp, nil, nil, commands.NewCommandRegistry())
-	sub.Submit("/not-a-real-command")
-	require.Len(t, tp.Snapshot().Messages, 1)
-	assert.Equal(t, "/not-a-real-command", tp.Snapshot().Messages[0].Text)
-	assert.Equal(t, session.RoleUser, tp.Snapshot().Messages[0].Role)
-}
-
-func TestSubmitter_Submit_bareBangFallsThroughToAgent(t *testing.T) {
-	th := components.DefaultTheme()
-	spin := status.NewSpinner(th.ToolName)
-	tp := transcript.NewTranscriptPane(th, spin, "Phi test")
-	sub := newTestSubmitter(t, tp, nil, nil, nil)
-	sub.Submit("!")
-	require.Len(t, tp.Snapshot().Messages, 1)
-	assert.Equal(t, "!", tp.Snapshot().Messages[0].Text)
-}
-
 func TestSubmitter_Submit_needsArgsRefillsComposer(t *testing.T) {
 	th := components.DefaultTheme()
 	spin := status.NewSpinner(th.ToolName)
@@ -113,19 +98,4 @@ func TestSubmitter_Submit_needsArgsRefillsComposer(t *testing.T) {
 	sub.Submit("/plan")
 	assert.Equal(t, "/plan ", comp.input)
 	assert.Empty(t, tp.Snapshot().Messages)
-}
-
-func TestSubmitter_Submit_withImagesOnly(t *testing.T) {
-	th := components.DefaultTheme()
-	spin := status.NewSpinner(th.ToolName)
-	tp := transcript.NewTranscriptPane(th, spin, "Phi test")
-	images := []imgutil.Attachment{
-		{Label: "a.png", Result: imgutil.Result{Data: []byte("abc"), MimeType: "image/png"}},
-	}
-	sub := newTestSubmitter(t, tp, nil, &stubComposer{images: images}, nil)
-	sub.Submit("")
-	require.Len(t, tp.Snapshot().Messages, 1)
-	msg := tp.Snapshot().Messages[0]
-	assert.Equal(t, session.RoleUser, msg.Role)
-	require.Len(t, msg.Images, 1)
 }
