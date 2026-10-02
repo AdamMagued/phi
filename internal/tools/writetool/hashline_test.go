@@ -2,7 +2,6 @@ package writetool
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -223,10 +222,7 @@ func TestRunEditFileHash(t *testing.T) {
 			if hash == "" {
 				hash = util.ComputeFileHash(original)
 			}
-			raw, err := json.Marshal(EditInput{Path: path, Hash: hash, Edits: edits})
-			require.NoError(t, err)
-
-			res, err := runEdit(t.Context(), raw)
+			res, err := runEdit(t.Context(), EditInput{Path: path, Hash: hash, Edits: edits})
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)

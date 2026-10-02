@@ -2,7 +2,6 @@ package writetool
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -43,8 +42,8 @@ Examples:
 
 // EditTool returns the edit (hashline) tool definition + handler.
 func EditTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
+	return tooldef.NewTool(
+		tooldef.WithDefinition(llm.ToolDefinition{
 			Name:        "edit",
 			Description: editDescription,
 			Params: &llm.FunctionParameters{
@@ -84,21 +83,23 @@ func EditTool() tooldef.Tool {
 				},
 				Required: []string{"path", "hash", "edits"},
 			},
-		},
-		DetailFromArgs: func(input json.RawMessage) string {
-			var in EditInput
-			_ = json.Unmarshal(input, &in)
-			return fmt.Sprintf("%s --edits %d", strings.TrimSpace(in.Path), len(in.Edits))
-		},
-		Run: runEdit,
-	}
+		}),
+		tooldef.WithDetail(editDetail),
+		tooldef.WithHandler(runEdit),
+	)
+}
+
+func editDetail(in EditInput) string {
+	return fmt.Sprintf("%s --edits %d", strings.TrimSpace(in.Path), len(in.Edits))
 }
 
 // EditInput is the edit tool payload (path + file TAG + flat edits).
 type EditInput struct {
-	Path  string     `json:"path"`
-	Hash  string     `json:"hash"`
-	Edits []FlatEdit `json:"edits"`
+	Path string `json:"path"`
+	// FilePath is a legacy alias some agent schemas use; only consulted when Path is empty.
+	FilePath string     `json:"file_path,omitempty"`
+	Hash     string     `json:"hash"`
+	Edits    []FlatEdit `json:"edits"`
 }
 
 // FlatEdit is the wire shape for each element in "edits".
@@ -130,8 +131,8 @@ type HashlineMismatchError struct {
 
 func (e *HashlineMismatchError) Error() string { return e.msg }
 
-func runEdit(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
-	param, err := parseEditInput(ctx, input)
+func runEdit(ctx context.Context, in EditInput) (tooldef.Result, error) {
+	param, err := prepareEditInput(ctx, in)
 	if err != nil {
 		return tooldef.Result{}, err
 	}
@@ -214,19 +215,11 @@ func ApplyHashlineEdit(ctx context.Context, fileContent string, param EditInput)
 	return strings.Join(lines, "\n"), nil
 }
 
-func parseEditInput(ctx context.Context, raw json.RawMessage) (EditInput, error) {
-	var param EditInput
-	if err := json.Unmarshal(raw, &param); err != nil {
-		return EditInput{}, fmt.Errorf("failed to parse edit arguments: %w", err)
-	}
+// prepareEditInput trims the path (honoring the legacy file_path alias) and pins it to cwd.
+func prepareEditInput(ctx context.Context, param EditInput) (EditInput, error) {
 	param.Path = strings.TrimSpace(param.Path)
 	if param.Path == "" {
-		var m map[string]any
-		if err := json.Unmarshal(raw, &m); err == nil {
-			if p, ok := m["file_path"].(string); ok {
-				param.Path = strings.TrimSpace(p)
-			}
-		}
+		param.Path = strings.TrimSpace(param.FilePath)
 	}
 	if param.Path == "" {
 		return EditInput{}, errors.New("edit requires a non-empty path: provide the same path you passed to read")

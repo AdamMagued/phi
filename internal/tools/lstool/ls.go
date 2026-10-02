@@ -29,8 +29,8 @@ const (
 
 // LsTool returns the ls tool definition + handler.
 func LsTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
+	return tooldef.NewTool(
+		tooldef.WithDefinition(llm.ToolDefinition{
 			Name:        "ls",
 			Description: lsDescription,
 			Params: &llm.FunctionParameters{
@@ -52,20 +52,36 @@ func LsTool() tooldef.Tool {
 				Required: []string{"path"},
 			},
 			Readable: true,
-		},
-		DetailFromArgs: func(input json.RawMessage) string {
-			var in lsInput
-			_ = json.Unmarshal(input, &in)
-			return strings.TrimSpace(in.Path)
-		},
-		Run: runLs,
-	}
+		}),
+		tooldef.WithDetail(lsDetail),
+		tooldef.WithHandler(runLs),
+	)
+}
+
+func lsDetail(in lsInput) string {
+	return strings.TrimSpace(in.Path)
 }
 
 type lsInput struct {
 	Path     string `json:"path,omitempty"`
 	Limit    int    `json:"limit,omitempty"`
 	MaxDepth int    `json:"max_depth,omitempty"`
+}
+
+// UnmarshalJSON also accepts a plain JSON string as the path.
+func (in *lsInput) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil && strings.TrimSpace(s) != "" {
+		in.Path = strings.TrimSpace(s)
+		return nil
+	}
+	type plain lsInput // distinct type: sheds UnmarshalJSON, avoids recursion
+	var p plain
+	if err := json.Unmarshal(data, &p); err != nil {
+		return fmt.Errorf("failed to parse ls arguments: %w", err)
+	}
+	*in = lsInput(p)
+	return nil
 }
 
 func normalizeOptions(limit, maxDepth int) (int, int) {
@@ -105,17 +121,7 @@ var skipDirs = map[string]bool{
 	".hg":            true,
 }
 
-func runLs(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
-	var in lsInput
-	if err := json.Unmarshal(input, &in); err != nil {
-		// Try as a plain string path.
-		var s string
-		if err2 := json.Unmarshal(input, &s); err2 != nil || strings.TrimSpace(s) == "" {
-			return tooldef.Result{}, fmt.Errorf("failed to parse ls arguments: %w", err)
-		}
-		in.Path = strings.TrimSpace(s)
-	}
-
+func runLs(ctx context.Context, in lsInput) (tooldef.Result, error) {
 	dir, err := tooldef.ResolveToCwd(ctx, in.Path)
 	if err != nil {
 		return tooldef.Result{}, err

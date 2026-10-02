@@ -3,7 +3,6 @@ package greptool
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,9 +22,7 @@ func TestRunGrep_CwdRelativeHeaders(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "main.go"), []byte("package main\nfunc Hello() {}\n"), 0o644))
 	t.Chdir(root)
 
-	raw, err := json.Marshal(grepInput{Pattern: "Hello", Path: "src"})
-	require.NoError(t, err)
-	out, err := runGrep(t.Context(), raw)
+	out, err := runGrep(t.Context(), grepInput{Pattern: "Hello", Path: "src"})
 	if err != nil && strings.Contains(err.Error(), "ripgrep") {
 		t.Skip(err.Error())
 	}
@@ -42,9 +39,7 @@ func TestRunGrep_DefaultPathUsesCwdRelative(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(src, "main.go"), []byte("package main\nfunc Hello() {}\n"), 0o644))
 	t.Chdir(root)
 
-	raw, err := json.Marshal(grepInput{Pattern: "Hello"})
-	require.NoError(t, err)
-	out, err := runGrep(t.Context(), raw)
+	out, err := runGrep(t.Context(), grepInput{Pattern: "Hello"})
 	if err != nil && strings.Contains(err.Error(), "ripgrep") {
 		t.Skip(err.Error())
 	}
@@ -113,9 +108,6 @@ func TestRunGrep_LimitReachedStopsCleanly(t *testing.T) {
 // runGrepBounded fails the test instead of hanging the suite.
 func runGrepBounded(t *testing.T, in grepInput) (tooldef.Result, error) {
 	t.Helper()
-	raw, err := json.Marshal(in)
-	require.NoError(t, err)
-
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 
@@ -125,7 +117,7 @@ func runGrepBounded(t *testing.T, in grepInput) (tooldef.Result, error) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		out, err := runGrep(ctx, raw)
+		out, err := runGrep(ctx, in)
 		done <- result{out: out, err: err}
 	}()
 
