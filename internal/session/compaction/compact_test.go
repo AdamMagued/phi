@@ -37,7 +37,7 @@ func editEntry(id, path string) session.MessageEntry {
 		Message: llm.Message{
 			Role: llm.RoleAssistant,
 			ToolCalls: []llm.ToolCall{{
-				Function: llm.Function{Name: "edit", Arguments: `{"path":"` + path + `"}`},
+				Function: llm.Function{Name: "edit", Arguments: `{"payload":"*** SM:EDIT ` + path + `\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`},
 			}},
 		},
 	}
@@ -218,8 +218,8 @@ func TestCompact_EmptyHistoryRefreshesFileOperations(t *testing.T) {
 			c := &captureCompactor{text: "Current turn context."}
 			for range 3 {
 				messages := []llm.Message{{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
-					{Function: llm.Function{Name: "edit", Arguments: `{"path":"a.go"}`}},
-					{Function: llm.Function{Name: "edit", Arguments: `{"path":"b.go"}`}},
+					{Function: llm.Function{Name: "edit", Arguments: `{"payload":"*** SM:EDIT a.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`}},
+					{Function: llm.Function{Name: "edit", Arguments: `{"payload":"*** SM:EDIT b.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`}},
 				}}}
 				fileOps := extractFileOperations(messages, []session.MessageEntry{
 					session.CompactionEntry{Compaction: previous},

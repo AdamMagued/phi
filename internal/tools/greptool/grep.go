@@ -297,7 +297,6 @@ func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 
 	// Read matched files to produce output.
 	fileCache := make(map[string][]string)
-	fileTag := make(map[string]string)
 	getFileLines := func(abs string) []string {
 		if cached, ok := fileCache[abs]; ok {
 			return cached
@@ -310,7 +309,6 @@ func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 		text := util.NormalizeLF(string(b))
 		lines := strings.Split(text, "\n")
 		fileCache[abs] = lines
-		fileTag[abs] = util.ComputeFileHash(text)
 		return lines
 	}
 
@@ -325,9 +323,7 @@ func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 		if m.filePath != lastAbs {
 			lastAbs = m.filePath
 			_ = getFileLines(m.filePath)
-			if tag, ok := fileTag[m.filePath]; ok && tag != "" {
-				out = append(out, util.FormatFileHeader(formatPath(m.filePath), tag))
-			}
+			out = append(out, fmt.Sprintf("@file %s", formatPath(m.filePath)))
 		}
 		block, lt := formatGrepBlock(formatPath, getFileLines, m.filePath, m.lineNumber, contextN)
 		if lt {
@@ -454,8 +450,7 @@ func formatGrepBlock(
 			lineText = fileLines[cur-1]
 		}
 		lineText = util.ReplaceAll(lineText, "\r", "")
-		h := util.ComputeLineHash(lineText)
-		ref := fmt.Sprintf("%d#%s", cur, h)
+		ref := fmt.Sprintf("%d", cur)
 		truncLine, wasTrunc := truncateLine(lineText, grepMaxLineRunes)
 		if wasTrunc {
 			anyLineTruncated = true
