@@ -131,3 +131,13 @@ func TestEditDetailListsTargetPaths(t *testing.T) {
 	}))
 	assert.Equal(t, "edit", editDetail(editInput{}))
 }
+
+func TestEditToolReportsNotesFromUnchangedFiles(t *testing.T) {
+	ctx, dir := toolContext(t)
+	writeFiles(t, dir, map[string]string{"a.ts": "const a = 1;\n"})
+
+	result, err := runEdit(ctx, editInput{Payload: "*** SM:EDIT a.ts\n*** SM:PUT\nconst a = 1;\n"})
+	require.NoError(t, err)
+	assert.Equal(t, "const a = 1;\n", readFiles(t, dir, "a.ts")["a.ts"])
+	assert.Contains(t, result.Content, "already matches the file")
+}

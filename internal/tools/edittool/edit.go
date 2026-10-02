@@ -120,16 +120,15 @@ func runEdit(ctx context.Context, in editInput) (tooldef.Result, error) {
 		result := results[section.Path]
 		displays = append(displays, file.display)
 
-		if result.Content == file.text {
-			continue // nothing changed; keep the file bytes untouched
-		}
-		text := result.Content
-		if file.crlf {
-			text = strings.ReplaceAll(text, "\n", "\r\n")
-		}
-		//nolint:gosec // G306: source files should stay world-readable
-		if err := os.WriteFile(file.path, []byte(text), 0o644); err != nil {
-			return tooldef.Result{}, fmt.Errorf("failed to write file %s: %w", file.display, err)
+		if result.Content != file.text {
+			text := result.Content
+			if file.crlf {
+				text = strings.ReplaceAll(text, "\n", "\r\n")
+			}
+			//nolint:gosec // G306: source files should stay world-readable
+			if err := os.WriteFile(file.path, []byte(text), 0o644); err != nil {
+				return tooldef.Result{}, fmt.Errorf("failed to write file %s: %w", file.display, err)
+			}
 		}
 
 		if body.Len() > 0 {
