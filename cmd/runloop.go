@@ -82,12 +82,14 @@ func runHeadless(opts runOptions) error {
 	}
 	// The runner owns plugin resources, so the deferred Close also closes MCP.
 	defer extRunner.Close()
-	extRunner.AddPlugin(readtool.Plugin())
-	extRunner.AddPlugin(lstool.Plugin())
-	extRunner.AddPlugin(findtool.Plugin())
-	extRunner.AddPlugin(bashtool.Plugin())
-	extRunner.AddPlugin(greptool.Plugin())
-	extRunner.AddPlugin(writetool.Plugin())
+	extRunner.AddPlugin(
+		readtool.Plugin(),
+		lstool.Plugin(),
+		findtool.Plugin(),
+		bashtool.Plugin(),
+		greptool.Plugin(),
+		writetool.Plugin(),
+	)
 	engineOpts := []agent.EngineOption{
 		agent.WithGate(bs.Gate),
 		agent.WithExtensions(extRunner),

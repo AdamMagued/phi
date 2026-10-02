@@ -283,14 +283,16 @@ func loadExtensions(proj *project.Project) *extension.Runner {
 	}
 	// Built-in plugins load before discovered extensions merge their tools,
 	// and read stays ahead of mcp_* in the merged schema order.
-	r.AddPlugin(readtool.Plugin())
-	r.AddPlugin(lstool.Plugin())
-	r.AddPlugin(findtool.Plugin())
-	r.AddPlugin(bashtool.Plugin())
-	r.AddPlugin(greptool.Plugin())
-	r.AddPlugin(writetool.Plugin())
-	// The runner owns plugin resources, so quitting closes the MCP pool too.
-	r.AddPlugin(mcp.Plugin(loadMCPPool(proj)))
+	r.AddPlugin(
+		readtool.Plugin(),
+		lstool.Plugin(),
+		findtool.Plugin(),
+		bashtool.Plugin(),
+		greptool.Plugin(),
+		writetool.Plugin(),
+		// The runner owns plugin resources, so quitting closes the MCP pool too.
+		mcp.Plugin(loadMCPPool(proj)),
+	)
 	return r
 }
 

@@ -62,13 +62,16 @@ func (r *Runner) Close() {
 	}
 }
 
-// AddPlugin registers a built-in plugin. The zero Plugin is ignored, so callers
-// can build one from a possibly-nil dependency without branching.
-func (r *Runner) AddPlugin(p Plugin) {
+// AddPlugin registers built-in plugins in the given order. Zero Plugins are
+// ignored, so callers can build one from a possibly-nil dependency without
+// branching.
+func (r *Runner) AddPlugin(plugins ...Plugin) {
 	if r == nil || r.bus == nil {
 		return
 	}
-	r.bus.addPlugin(p)
+	for _, p := range plugins {
+		r.bus.addPlugin(p)
+	}
 }
 
 // Loaded returns discovered extensions that were loaded.
