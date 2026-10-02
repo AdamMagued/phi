@@ -53,8 +53,8 @@ Use read for full untruncated line text. Prefer this over bash grep/rg.`,
 
 // GrepTool returns the grep (search) tool definition + handler.
 func GrepTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
+	return tooldef.NewTool(
+		tooldef.WithDefinition(llm.ToolDefinition{
 			Name:        "grep",
 			Description: grepDescription,
 			Params: &llm.FunctionParameters{
@@ -99,22 +99,22 @@ func GrepTool() tooldef.Tool {
 				Required: []string{"pattern"},
 			},
 			Readable: true,
-		},
-		DetailFromArgs: func(input json.RawMessage) string {
-			var in grepInput
-			_ = json.Unmarshal(input, &in)
-			pat := strings.TrimSpace(in.Pattern)
-			p := strings.TrimSpace(in.Path)
-			if p == "" {
-				p = "."
-			}
-			if pat != "" {
-				return fmt.Sprintf("grep %q in %s", pat, p)
-			}
-			return "grep"
-		},
-		Run: runGrep,
+		}),
+		tooldef.WithDetail(grepDetail),
+		tooldef.WithHandler(runGrep),
+	)
+}
+
+func grepDetail(in grepInput) string {
+	pat := strings.TrimSpace(in.Pattern)
+	p := strings.TrimSpace(in.Path)
+	if p == "" {
+		p = "."
 	}
+	if pat != "" {
+		return fmt.Sprintf("grep %q in %s", pat, p)
+	}
+	return "grep"
 }
 
 type grepInput struct {
@@ -143,11 +143,7 @@ type grepMatch struct {
 	lineNumber int
 }
 
-func runGrep(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
-	var in grepInput
-	if err := json.Unmarshal(input, &in); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to parse grep arguments: %w", err)
-	}
+func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 	if strings.TrimSpace(in.Pattern) == "" {
 		return tooldef.Result{}, errors.New("pattern is required: provide a regex or literal search string")
 	}

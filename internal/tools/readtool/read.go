@@ -2,7 +2,6 @@ package readtool
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -31,8 +30,8 @@ Output body is capped at %d lines and %d KiB per call.`,
 
 // ReadTool returns the read tool definition + handler.
 func ReadTool() tooldef.Tool {
-	return tooldef.Tool{
-		Definition: llm.ToolDefinition{
+	return tooldef.NewTool(
+		tooldef.WithDefinition(llm.ToolDefinition{
 			Name:        "read",
 			Description: readDescription,
 			Params: &llm.FunctionParameters{
@@ -54,14 +53,14 @@ func ReadTool() tooldef.Tool {
 				Required: []string{"path"},
 			},
 			Readable: true,
-		},
-		DetailFromArgs: func(input json.RawMessage) string {
-			var in readInput
-			_ = json.Unmarshal(input, &in)
-			return strings.TrimSpace(in.Path)
-		},
-		Run: runRead,
-	}
+		}),
+		tooldef.WithDetail(readDetail),
+		tooldef.WithHandler(runRead),
+	)
+}
+
+func readDetail(in readInput) string {
+	return strings.TrimSpace(in.Path)
 }
 
 type readInput struct {
@@ -70,11 +69,7 @@ type readInput struct {
 	Offset int    `json:"offset,omitempty"`
 }
 
-func runRead(ctx context.Context, input json.RawMessage) (tooldef.Result, error) {
-	var in readInput
-	if err := json.Unmarshal(input, &in); err != nil {
-		return tooldef.Result{}, fmt.Errorf("failed to parse read arguments: %w", err)
-	}
+func runRead(ctx context.Context, in readInput) (tooldef.Result, error) {
 	path := strings.TrimSpace(in.Path)
 	if path == "" {
 		return tooldef.Result{}, errors.New("path is required")
