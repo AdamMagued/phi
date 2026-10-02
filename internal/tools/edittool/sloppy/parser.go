@@ -135,7 +135,7 @@ func (p *parser) append(tok Token) {
 // flush closes the open operation, if any, at the next header or end of input.
 func (p *parser) flush() error {
 	find := joinBody(p.find)
-	put := joinBody(p.put)
+	put := joinAction(p.put)
 	findLn, putLn := p.findLn, p.putLn
 	kind, havePut := p.putKind, p.havePut
 	p.find, p.put = p.find[:0], p.put[:0]
@@ -191,7 +191,8 @@ func (p *parser) section(path string) *Section {
 }
 
 // joinBody trims blank edges, strips uniform line numbering, and joins the
-// body lines.
+// body lines. A pattern quotes current text: blank lines pasted around it are
+// noise, not content.
 func joinBody(lines []string) string {
 	start, end := 0, len(lines)
 	for start < end && strings.TrimSpace(lines[start]) == "" {
@@ -200,10 +201,20 @@ func joinBody(lines []string) string {
 	for end > start && strings.TrimSpace(lines[end-1]) == "" {
 		end--
 	}
-	if start == end {
+	return joinLines(lines[start:end])
+}
+
+// joinAction joins a rewrite body, keeping blank edges: in *** SM:PUT and
+// *** SM:AFTER an authored blank line is content.
+func joinAction(lines []string) string {
+	return joinLines(lines)
+}
+
+// joinLines strips uniform read-output line numbering and joins body lines.
+func joinLines(body []string) string {
+	if len(body) == 0 {
 		return ""
 	}
-	body := lines[start:end]
 	if allNumbered(body) {
 		var b strings.Builder
 		for i, line := range body {
