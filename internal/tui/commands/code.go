@@ -8,9 +8,6 @@ type CodeCommands struct {
 
 // Register wires /code into r.
 func (c *CodeCommands) Register(r *CommandRegistry) {
-	if c == nil || r == nil {
-		return
-	}
 	r.Register(Command{
 		Name:        "code",
 		Description: "Open a file in the viewer — /code path[:line]",

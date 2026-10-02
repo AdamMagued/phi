@@ -20,9 +20,6 @@ func NewRedrawRelay() *RedrawRelay { return &RedrawRelay{} }
 
 // Fire invokes the bound redraw callback, if any.
 func (r *RedrawRelay) Fire() {
-	if r == nil {
-		return
-	}
 	if p := r.fn.Load(); p != nil && *p != nil {
 		(*p)()
 	}
@@ -30,9 +27,6 @@ func (r *RedrawRelay) Fire() {
 
 // Bind sets the redraw callback (typically Editor.RequestRedraw).
 func (r *RedrawRelay) Bind(fn func()) {
-	if r == nil {
-		return
-	}
 	if fn == nil {
 		r.fn.Store(nil)
 		return
@@ -67,9 +61,6 @@ func NewBus(onWake func()) *Bus {
 // AssistantMessageUpdate / same-tool ToolData / same child Progress coalesce
 // even when not adjacent in the queue (latest wins).
 func (b *Bus) Publish(m Msg) {
-	if b == nil {
-		return
-	}
 	b.mu.Lock()
 	if te, ok := m.(SessionEventMsg); ok {
 		if i, ok := findCoalesceSession(b.pending, te); ok {
@@ -105,9 +96,6 @@ func (b *Bus) signal() {
 
 // Drain returns and clears the pending queue. UI goroutine only.
 func (b *Bus) Drain() []Msg {
-	if b == nil {
-		return nil
-	}
 	b.mu.Lock()
 	batch := b.pending
 	b.pending = nil
@@ -122,9 +110,6 @@ func (b *Bus) Drain() []Msg {
 
 // Chan exposes the wake signal for select-based loops (optional).
 func (b *Bus) Chan() <-chan struct{} {
-	if b == nil {
-		return nil
-	}
 	return b.wake
 }
 

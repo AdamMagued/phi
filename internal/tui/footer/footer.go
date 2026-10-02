@@ -50,49 +50,34 @@ func NewFooterChrome(theme components.Theme, contextWindow int) *FooterChrome {
 
 // Spinner returns the shared spinner (e.g. for TranscriptPane mapper).
 func (f *FooterChrome) Spinner() *status.Spinner {
-	if f == nil {
-		return nil
-	}
 	return f.spin
 }
 
 // Activity returns the activity handler.
 func (f *FooterChrome) Activity() *controller.ActivityHandler {
-	if f == nil {
-		return nil
-	}
 	return f.activity
 }
 
 // BindComposer wires the composer for status-slot updates.
 func (f *FooterChrome) BindComposer(c labelComposer) {
-	if f != nil {
-		f.composer = c
-		f.syncStatusSlot()
-	}
+	f.composer = c
+	f.syncStatusSlot()
 }
 
 // SetLabelContext supplies snap for activity status labels.
 func (f *FooterChrome) SetLabelContext(fn func() session.Snapshot) {
-	if f != nil {
-		f.labelContext = fn
-	}
+	f.labelContext = fn
 }
 
 // SetLiveJobs supplies live sub-agent job count for the footer row.
 func (f *FooterChrome) SetLiveJobs(fn func() int) {
-	if f != nil {
-		f.liveJobs = fn
-	}
+	f.liveJobs = fn
 }
 
 // AdvanceTick drives spinner animation during active work.
 func (f *FooterChrome) AdvanceTick() {
-	if f == nil {
-		return
-	}
 	f.tick++
-	if f.activity.ShowSpinner() && f.tick%4 == 0 && f.spin != nil {
+	if f.activity.ShowSpinner() && f.tick%4 == 0 {
 		f.spin.Tick()
 		f.syncStatusSlot()
 	}
@@ -100,22 +85,14 @@ func (f *FooterChrome) AdvanceTick() {
 
 // SyncFromSnap refreshes activity from the session snapshot.
 func (f *FooterChrome) SyncFromSnap(snap session.Snapshot) {
-	if f == nil || f.activity == nil {
-		return
-	}
 	f.activity.SyncFromSnap(snap)
 	f.syncStatusSlot()
 }
 
 // SetTheme updates footer chrome styling.
 func (f *FooterChrome) SetTheme(th components.Theme) {
-	if f == nil {
-		return
-	}
 	f.theme = th
-	if f.spin != nil {
-		f.spin.Style = th.ToolName
-	}
+	f.spin.Style = th.ToolName
 	f.syncStatusSlot()
 }
 
@@ -123,33 +100,22 @@ func (f *FooterChrome) SetTheme(th components.Theme) {
 // clears the label, so a session switch never leaves the previous session's
 // counts on screen.
 func (f *FooterChrome) UpdateTokenDisplay(usage session.TokenUsage) {
-	if f == nil {
-		return
-	}
 	f.lastUsage = usage
 	f.syncStatusSlot()
 }
 
 // ClearTokenDisplay clears stored usage and refreshes the status slot.
 func (f *FooterChrome) ClearTokenDisplay() {
-	if f == nil {
-		return
-	}
 	f.UpdateTokenDisplay(session.TokenUsage{})
 }
 
 // SetExtensionStatus sets the extension status shown on the bottom footer row.
 func (f *FooterChrome) SetExtensionStatus(status string) {
-	if f != nil {
-		f.hookStatus = status
-	}
+	f.hookStatus = status
 }
 
 // Apply handles footer bus messages.
 func (f *FooterChrome) Apply(msg controller.FooterMsg) {
-	if f == nil {
-		return
-	}
 	switch msg.Kind {
 	case controller.FooterSetActivity:
 		f.activity.Apply(msg.Activity)
@@ -165,9 +131,6 @@ func (f *FooterChrome) Apply(msg controller.FooterMsg) {
 
 // ApplySessionEffects applies toast/status from session lifecycle extensions.
 func (f *FooterChrome) ApplySessionEffects(msg controller.ExtSessionEffectsMsg) {
-	if f == nil {
-		return
-	}
 	if msg.StatusSet {
 		f.hookStatus = msg.Status
 	}
@@ -175,7 +138,7 @@ func (f *FooterChrome) ApplySessionEffects(msg controller.ExtSessionEffectsMsg) 
 
 // syncStatusSlot writes the composer bottom-left label: activity while busy, else tokens.
 func (f *FooterChrome) syncStatusSlot() {
-	if f == nil || f.composer == nil {
+	if f.composer == nil {
 		return
 	}
 	var snap session.Snapshot
@@ -202,7 +165,7 @@ func (f *FooterChrome) activityStatusLabel(msg string) layout.BorderLabel {
 	// Ambient chrome + typing-color sheen: one frame dialect, motion without a
 	// competing brand hue (no ToolName cyan on the border).
 	dim := ChromeLabelStyle(f.theme)
-	if !f.activity.ShowSpinner() || f.spin == nil {
+	if !f.activity.ShowSpinner() {
 		return layout.BorderLabel{Text: msg, Style: dim}
 	}
 	on := f.theme.Foreground
@@ -220,9 +183,6 @@ func (f *FooterChrome) activityStatusLabel(msg string) layout.BorderLabel {
 // Draw renders the bottom footer row (extension status, jobs, update hint).
 // Activity/spinner live on the composer status slot, not here.
 func (f *FooterChrome) Draw(ctx components.DrawContext, width int) components.Surface {
-	if f == nil {
-		return components.NewSurface(width, 1, nil)
-	}
 	footer := components.NewSurface(width, 1, nil)
 	dim := f.theme.Muted
 	var parts []string

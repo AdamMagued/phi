@@ -83,9 +83,6 @@ func (w *Screen) Draw(ctx components.DrawContext) components.Surface {
 	}
 
 	sphere := w.Sphere
-	if sphere == nil {
-		sphere = &Sphere{}
-	}
 	// Fit sphere into available space; default is 40×40.
 	sphereSize := 40
 	if maxH < sphereSize+2 {

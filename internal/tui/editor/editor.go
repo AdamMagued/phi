@@ -90,7 +90,7 @@ func NewEditor(
 	// before. Available() covers both the switch and the missing-credentials case,
 	// so what is left here is startup noise, not fatal — the picker stays closed,
 	// so it is logged rather than surfaced.
-	if ctrl != nil && ctrl.SessionDir() != "" && optimizer.Available() {
+	if ctrl.SessionDir() != "" && optimizer.Available() {
 		suggester, err := composer.NewJevSuggester()
 		if err != nil {
 			debuglog.Logf("composer: ! completions disabled: %v", err)
@@ -104,31 +104,18 @@ func NewEditor(
 	e.transcript.SetUsageCallback(e.footer.UpdateTokenDisplay)
 	e.footer.BindComposer(e.composer)
 	e.footer.SetLabelContext(e.transcript.Snapshot)
-	e.footer.SetLiveJobs(func() int {
-		if e.ctrl != nil {
-			return e.ctrl.LiveJobCount()
-		}
-		return 0
-	})
+	e.footer.SetLiveJobs(func() int { return e.ctrl.LiveJobCount() })
 	e.overlays = overlays.NewOverlays(
 		theme,
 		e.footer.Activity(),
 		e.composer,
-		func() {
-			if e.App != nil {
-				e.App.RequestFocus(e)
-			}
-		},
-		func() {
-			if e.App != nil {
-				e.composer.FocusChat()
-			}
-		},
+		func() { e.App.RequestFocus(e) },
+		func() { e.composer.FocusChat() },
 	)
 	e.transcript.SetCopyHandlers(
 		e.bus,
 		func(text string) bool {
-			return e.vx != nil && e.vx.CopyToClipboard(text) == nil
+			return e.vx.CopyToClipboard(text) == nil
 		},
 	)
 	e.diff = diffpane.New(e.theme, cwd,
@@ -136,7 +123,7 @@ func NewEditor(
 			e.Publish(controller.SubmitMsg{Text: text})
 		},
 		func(text string) bool {
-			return e.vx != nil && e.vx.CopyToClipboard(text) == nil
+			return e.vx.CopyToClipboard(text) == nil
 		},
 		func(msg string) {
 			e.Publish(controller.ToastMsg{Message: msg, Kind: toast.ToastSuccess, Duration: 2 * time.Second})
@@ -205,32 +192,16 @@ func NewEditor(
 		e.cwd,
 		e.bus,
 		e.drainBus,
-		func() {
-			if e.vx != nil {
-				e.vx.QueueRefresh()
-			}
-		},
-		func() bool { return e.ctrl != nil && e.ctrl.ImageEnabled() },
+		func() { e.vx.QueueRefresh() },
+		func() bool { return e.ctrl.ImageEnabled() },
 		e.blocksComposer,
 		e.overlays.HandlePermissionKey,
 		e.overlays.HandleContinueKey,
 		e.overlays.HandleConfirmKey,
 		e.handleCopyKey,
-		func() {
-			if e.App != nil {
-				e.App.RequestFocus(e)
-			}
-		},
-		func(w components.Widget) {
-			if e.App != nil {
-				e.App.RequestFocus(w)
-			}
-		},
-		func() {
-			if e.ctrl != nil {
-				e.ctrl.Close()
-			}
-		},
+		func() { e.App.RequestFocus(e) },
+		func(w components.Widget) { e.App.RequestFocus(w) },
+		func() { e.ctrl.Close() },
 	)
 
 	e.extCmds.Sync()
@@ -239,9 +210,6 @@ func NewEditor(
 
 // Publish sends a message onto the bus from any goroutine / widget callback.
 func (e *Editor) Publish(m controller.Msg) {
-	if e.bus == nil {
-		return
-	}
 	e.bus.Publish(m)
 }
 
@@ -278,13 +246,9 @@ func (e *Editor) Update(m controller.Msg) {
 		}
 	case controller.BranchLabelMsg:
 		e.composer.SetBranchLabel(msg.Text)
-		if e.vx != nil {
-			e.vx.QueueRefresh()
-		}
+		e.vx.QueueRefresh()
 	case controller.ExtCommandResultMsg:
-		if e.extCmds != nil {
-			e.extCmds.Apply(msg)
-		}
+		e.extCmds.Apply(msg)
 	case controller.JobProgressMsg:
 		// Applied in drainBus so we can skip Sync when the tree is unchanged.
 	}
@@ -320,24 +284,19 @@ func (e *Editor) drainBus() {
 }
 
 func (e *Editor) blocksComposer() bool {
-	if e.overlays != nil && e.overlays.BlocksComposer() {
+	if e.overlays.BlocksComposer() {
 		return true
 	}
-	if e.diff != nil && e.diff.Active() {
+	if e.diff.Active() {
 		return true
 	}
-	return e.code != nil && e.code.Active()
+	return e.code.Active()
 }
 
 // openDiff and openCode each close the other: two full-screen overlays cannot
 // both own the frame, and the one underneath would come back on the next Esc.
 func (e *Editor) openDiff(args []string) {
-	if e.diff == nil {
-		return
-	}
-	if e.code != nil {
-		e.code.Close()
-	}
+	e.code.Close()
 	e.diff.OpenGit(e.cwd, args)
 	e.captureOverlayFocus()
 }
@@ -345,9 +304,6 @@ func (e *Editor) openDiff(args []string) {
 // openCode shows a file in the viewer. A ":line" suffix puts the cursor there.
 // An "@" prefix is expanded to "./" so the shell can complete the path.
 func (e *Editor) openCode(args []string) {
-	if e.code == nil {
-		return
-	}
 	path := strings.TrimSpace(strings.Join(args, " "))
 	if strings.HasPrefix(path, "@") {
 		path = "./" + path[1:]
@@ -362,21 +318,15 @@ func (e *Editor) openCode(args []string) {
 			path, line = base, n
 		}
 	}
-	if e.diff != nil {
-		e.diff.Close()
-	}
+	e.diff.Close()
 	e.code.OpenAt(path, line)
 	e.captureOverlayFocus()
 }
 
 func (e *Editor) captureOverlayFocus() {
-	if e.App != nil {
-		e.App.RequestFocus(e)
-	}
-	if e.composer != nil {
-		e.composer.HideCompleters()
-		e.composer.HidePalette()
-	}
+	e.App.RequestFocus(e)
+	e.composer.HideCompleters()
+	e.composer.HidePalette()
 }
 
 func (e *Editor) Handle(ctx *components.EventContext, ev xui.Event) {
@@ -384,18 +334,18 @@ func (e *Editor) Handle(ctx *components.EventContext, ev xui.Event) {
 		e.composer.Handle(ctx, ev)
 		return
 	}
-	if e.diff != nil && e.diff.Active() {
+	if e.diff.Active() {
 		e.captureOverlayFocus()
 		e.diff.Handle(ctx, ev)
-		if !e.diff.Active() && e.composer != nil {
+		if !e.diff.Active() {
 			e.composer.FocusChat()
 		}
 		return
 	}
-	if e.code != nil && e.code.Active() {
+	if e.code.Active() {
 		e.captureOverlayFocus()
 		e.code.Handle(ctx, ev)
-		if !e.code.Active() && e.composer != nil {
+		if !e.code.Active() {
 			e.composer.FocusChat()
 		}
 		return
@@ -411,15 +361,13 @@ func (e *Editor) handleCopyKey(ctx *components.EventContext, ke xui.KeyEvent) bo
 func (e *Editor) Draw(ctx components.DrawContext) components.Surface {
 	e.drainBus()
 
-	if e.footer != nil {
-		e.footer.AdvanceTick()
-	}
+	e.footer.AdvanceTick()
 	_ = e.toast.Visible()
 
-	if e.diff != nil && e.diff.Active() {
+	if e.diff.Active() {
 		return e.drawOverlay(ctx, e.diff.Draw(ctx))
 	}
-	if e.code != nil && e.code.Active() {
+	if e.code.Active() {
 		return e.drawOverlay(ctx, e.code.Draw(ctx))
 	}
 
@@ -512,9 +460,7 @@ func (e *Editor) drawOverlay(ctx components.DrawContext, root components.Surface
 }
 
 func (e *Editor) requestRedraw() {
-	if e.App != nil {
-		e.App.RequestRedraw()
-	}
+	e.App.RequestRedraw()
 }
 
 // RequestRedraw asks the app to repaint (safe to bind onto controller.RedrawRelay / controller.Bus).
@@ -562,14 +508,8 @@ func (e *Editor) applyTheme(name string) {
 	e.transcript.SetTheme(th)
 	e.footer.SetTheme(th)
 	e.overlays.SetTheme(th)
-	if e.diff != nil {
-		e.diff.SetTheme(th)
-	}
-	if e.code != nil {
-		e.code.SetTheme(th)
-	}
+	e.diff.SetTheme(th)
+	e.code.SetTheme(th)
 	e.toast.Show("Theme: "+name, toast.ToastSuccess, 2*time.Second)
-	if e.vx != nil {
-		e.vx.QueueRefresh()
-	}
+	e.vx.QueueRefresh()
 }

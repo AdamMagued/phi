@@ -27,9 +27,6 @@ type settingsComposer interface {
 
 // Register wires settings palette entries into r.
 func (s *SettingsCommands) Register(r *CommandRegistry) {
-	if s == nil || r == nil {
-		return
-	}
 	r.Register(Command{
 		Name: "settings-model",
 		Build: func(_ Context) palette.PaletteCommand {
@@ -63,9 +60,6 @@ func (s *SettingsCommands) Register(r *CommandRegistry) {
 }
 
 func (s *SettingsCommands) setModel(name string) {
-	if s == nil || s.Ctrl == nil {
-		return
-	}
 	if err := s.Ctrl.SetModel(name); err != nil {
 		publishToast(s.Bus, err.Error(), toast.ToastError, 3*time.Second)
 		return
@@ -77,16 +71,10 @@ func (s *SettingsCommands) setModel(name string) {
 }
 
 func (s *SettingsCommands) applyTheme(name string) {
-	if s == nil || s.Bus == nil {
-		return
-	}
 	s.Bus.Publish(controller.ThemeMsg{Name: name})
 }
 
 func (s *SettingsCommands) setPermissions(bypass bool) {
-	if s == nil || s.Ctrl == nil {
-		return
-	}
 	s.Ctrl.SetAllowAll(bypass)
 	kind := toast.ToastWarning
 	msg := "Permissions: on (ask)"
@@ -98,9 +86,6 @@ func (s *SettingsCommands) setPermissions(bypass bool) {
 }
 
 func (s *SettingsCommands) setAgents(enabled bool) {
-	if s == nil || s.Ctrl == nil {
-		return
-	}
 	s.Ctrl.SetAgentsEnabled(enabled)
 	msg := "Sub-agents: off"
 	if enabled {
@@ -110,9 +95,6 @@ func (s *SettingsCommands) setAgents(enabled bool) {
 }
 
 func (s *SettingsCommands) setRoleModel(role, name string) {
-	if s == nil || s.Ctrl == nil {
-		return
-	}
 	if err := s.Ctrl.SetRoleModel(role, name); err != nil {
 		publishToast(s.Bus, err.Error(), toast.ToastError, 3*time.Second)
 		return
@@ -125,9 +107,6 @@ func (s *SettingsCommands) setRoleModel(role, name string) {
 }
 
 func (s *SettingsCommands) setThinkLevel(level llm.ThinkMode) {
-	if s == nil || s.Ctrl == nil {
-		return
-	}
 	s.Ctrl.SetThinkLevel(level)
 	label := string(level)
 	if level == llm.Off {

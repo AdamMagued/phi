@@ -16,7 +16,7 @@ type BranchCommands struct {
 	Bus *controller.Bus
 	// Dir is the directory git runs in (the agent's working directory).
 	Dir func() string
-	// OpenOverlay opens the branch picker. When nil, /branch toasts instead.
+	// OpenOverlay opens the branch picker (wired by Builtin.Bind).
 	OpenOverlay func(branches []gitx.Branch, recent []string, onAccept func(name string))
 	// StreamActive reports whether a checkout must be refused.
 	StreamActive func() bool
@@ -47,9 +47,6 @@ func NewBranchCommands(bus *controller.Bus) *BranchCommands {
 
 // Register wires /branch into r.
 func (b *BranchCommands) Register(r *CommandRegistry) {
-	if b == nil || r == nil {
-		return
-	}
 	r.Register(Command{
 		Name:        "branch",
 		Description: "Switch the working branch — /branch [name] creates",
@@ -66,9 +63,6 @@ func (b *BranchCommands) Register(r *CommandRegistry) {
 // call, so it runs inline like /sessions does; the checkout it leads to does
 // not.
 func (b *BranchCommands) Show() {
-	if b == nil {
-		return
-	}
 	dir := b.dir()
 	ctx := context.Background()
 	branches, err := b.Branches(ctx, dir)
@@ -78,10 +72,6 @@ func (b *BranchCommands) Show() {
 	}
 	if len(branches) == 0 {
 		b.toast("No branches yet — commit something first", toast.ToastWarning)
-		return
-	}
-	if b.OpenOverlay == nil {
-		b.toast("Branch picker unavailable", toast.ToastError)
 		return
 	}
 	// Reflog only decides row order; a missing one must not block switching.
@@ -95,9 +85,6 @@ func (b *BranchCommands) Show() {
 // Run handles /branch and /branch <name>. A name that is not a branch yet is
 // created from HEAD, which is how a new workstream starts without leaving phi.
 func (b *BranchCommands) Run(args []string) {
-	if b == nil {
-		return
-	}
 	switch len(args) {
 	case 0:
 		b.Show()
@@ -111,9 +98,6 @@ func (b *BranchCommands) Run(args []string) {
 // SwitchOrCreate switches to name, creating it from HEAD when no branch carries
 // it. A remote-tracking name means the local branch that tracks it.
 func (b *BranchCommands) SwitchOrCreate(name string) {
-	if b == nil {
-		return
-	}
 	if !gitx.ValidRef(name) {
 		b.toast("Not a branch name: "+strconv.Quote(name), toast.ToastWarning)
 		return
@@ -152,9 +136,6 @@ func localTarget(branches []gitx.Branch, name string) (string, bool) {
 // large worktree can take seconds, and git refuses rather than lose work, so
 // the failure is reported instead of pre-empted.
 func (b *BranchCommands) SwitchTo(name string) {
-	if b == nil {
-		return
-	}
 	if b.refuse() {
 		return
 	}
@@ -177,9 +158,6 @@ func (b *BranchCommands) SwitchTo(name string) {
 // CreateBranch branches name off HEAD. Creating does not touch the working
 // tree, so git allows it dirty; only work already in flight holds it back.
 func (b *BranchCommands) CreateBranch(name string) {
-	if b == nil {
-		return
-	}
 	if b.refuse() {
 		return
 	}
@@ -200,9 +178,6 @@ func (b *BranchCommands) refuse() bool {
 	if b.StreamActive != nil && b.StreamActive() {
 		b.toast("Cannot switch branches while a reply or command is running", toast.ToastWarning)
 		return true
-	}
-	if b.Preflight == nil {
-		return false
 	}
 	st, err := b.Preflight(context.Background(), b.dir())
 	if err != nil || st.Op == "" {

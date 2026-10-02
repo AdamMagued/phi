@@ -53,7 +53,7 @@ func NewSubmitter(
 	resolveConfirm func(controller.ExtConfirmReply),
 ) *Submitter {
 	var history *shellhist.Store
-	if ctrl != nil && ctrl.SessionDir() != "" {
+	if ctrl.SessionDir() != "" {
 		history = shellhist.New(ctrl.SessionDir())
 	}
 	return &Submitter{
@@ -76,20 +76,14 @@ func NewSubmitter(
 
 // SyncBashBorder updates composer chrome for "!cmd" prefix.
 func (s *Submitter) SyncBashBorder(text string) {
-	if s == nil || s.bash == nil {
-		return
-	}
 	s.bash.SyncBorder(text)
 }
 
 // Submit handles a user prompt from the composer (agent, slash, or bash).
 func (s *Submitter) Submit(text string) {
-	if s == nil {
-		return
-	}
 	text = strings.TrimSpace(text)
 	if strings.HasPrefix(text, "!") {
-		if s.bash != nil && s.bash.HandleSubmit(text) {
+		if s.bash.HandleSubmit(text) {
 			return
 		}
 	}
@@ -184,16 +178,11 @@ func (s *Submitter) handleUserInput(text string) {
 	s.composer.ClearPendingImages()
 	s.composer.ClearPendingRefs()
 
-	if s.ctrl != nil {
-		s.ctrl.StartPrompt(promptWithRefs(text, pendingRefs), pendingSkills, llmImages)
-	}
+	s.ctrl.StartPrompt(promptWithRefs(text, pendingRefs), pendingSkills, llmImages)
 }
 
 // Cancel aborts overlays, bash, or the in-flight agent stream.
 func (s *Submitter) Cancel() {
-	if s == nil {
-		return
-	}
 	if s.resolvePermission != nil && s.permissionActive != nil && s.permissionActive() {
 		s.resolvePermission(controller.AskReply{})
 	}
@@ -203,12 +192,10 @@ func (s *Submitter) Cancel() {
 	if s.resolveConfirm != nil && s.confirmActive != nil && s.confirmActive() {
 		s.resolveConfirm(controller.ExtConfirmReply{})
 	}
-	if s.bash != nil && s.bash.Cancel() {
+	if s.bash.Cancel() {
 		return
 	}
-	if s.ctrl != nil {
-		s.ctrl.Cancel()
-	}
+	s.ctrl.Cancel()
 	s.transcript.ApplySession(session.CancelStreaming{})
 	s.transcript.Sync()
 	s.activity.Apply(controller.ActivityCancelled)
@@ -219,35 +206,20 @@ func (s *Submitter) Cancel() {
 
 // RunningBash reports whether a local "!cmd" is in flight.
 func (s *Submitter) RunningBash() bool {
-	if s == nil || s.bash == nil {
-		return false
-	}
 	return s.bash.Running()
 }
 
 // IsBusy reports agent stream or local bash activity.
 func (s *Submitter) IsBusy() bool {
-	if s == nil {
-		return false
-	}
-	if s.transcript != nil && s.transcript.IsStreaming() {
-		return true
-	}
-	return s.bash != nil && s.bash.Running()
+	return s.transcript.IsStreaming() || s.bash.Running()
 }
 
 // StreamActive reports whether user input should be blocked for stream/overlays.
 func (s *Submitter) StreamActive() bool {
-	if s == nil {
-		return false
-	}
 	if s.IsBusy() ||
 		(s.permissionActive != nil && s.permissionActive()) ||
 		(s.continueActive != nil && s.continueActive()) {
 		return true
-	}
-	if s.activity == nil {
-		return false
 	}
 	switch s.activity.Current {
 	case controller.ActivitySubmitting,
@@ -271,7 +243,7 @@ func (s *Submitter) dispatchSlash(text string) bool {
 }
 
 func (s *Submitter) incompleteSlash(text string) (string, bool) {
-	if s == nil || s.commands == nil {
+	if s.commands == nil {
 		return "", false
 	}
 	return s.commands.IncompleteSlash(text)

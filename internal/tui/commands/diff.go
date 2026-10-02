@@ -7,9 +7,6 @@ type DiffCommands struct {
 
 // Register wires /diff into r.
 func (d *DiffCommands) Register(r *CommandRegistry) {
-	if d == nil || r == nil {
-		return
-	}
 	r.Register(Command{
 		Name:        "diff",
 		Description: "Review git diff — /diff, /diff staged, /diff HEAD",

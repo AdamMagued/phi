@@ -117,9 +117,6 @@ func (c *ComposerPane) Wire(
 	requestFocus func(components.Widget),
 	ctrlClose func(),
 ) {
-	if c == nil {
-		return
-	}
 	c.cwd = cwd
 	c.commands = commands
 	c.transcript = transcript
@@ -167,9 +164,6 @@ func (c *ComposerPane) Wire(
 
 // HideCompleters closes mention, slash, question, @, and "!" pickers.
 func (c *ComposerPane) HideCompleters() {
-	if c == nil {
-		return
-	}
 	c.mention.Hide()
 	c.Chat.MentionOpen = false
 	c.abandonMentionSearch()
@@ -184,9 +178,7 @@ func (c *ComposerPane) HideCompleters() {
 
 // HidePalette closes the command palette if open.
 func (c *ComposerPane) HidePalette() {
-	if c != nil {
-		c.palette.Hide()
-	}
+	c.palette.Hide()
 }
 
 // ShowList opens the opaque list picker overlay. Each caller passes its own
@@ -197,9 +189,6 @@ func (c *ComposerPane) ShowList(
 	cfg listpicker.ShowConfig,
 	onAccept func(listpicker.Item),
 ) {
-	if c == nil {
-		return
-	}
 	c.HideCompleters()
 	c.HidePalette()
 	c.listPicker.OnAccept = onAccept
@@ -218,9 +207,6 @@ func (c *ComposerPane) ShowSessionList(
 	currentID string,
 	onAccept func(id string),
 ) {
-	if c == nil {
-		return
-	}
 	c.ShowList(sessionlist.Items(items, currentID, time.Time{}), sessionlist.Config(), func(item listpicker.Item) {
 		if onAccept != nil {
 			onAccept(item.ID)
@@ -234,9 +220,6 @@ func (c *ComposerPane) ShowBranchList(
 	recent []string,
 	onAccept func(name string),
 ) {
-	if c == nil {
-		return
-	}
 	c.ShowList(branchlist.Items(branches, recent), branchlist.Config(), func(item listpicker.Item) {
 		if onAccept != nil {
 			onAccept(item.ID)
@@ -246,7 +229,7 @@ func (c *ComposerPane) ShowBranchList(
 
 // ListOverlay returns the list picker surface when open.
 func (c *ComposerPane) ListOverlay(ctx components.DrawContext) (components.SubSurface, bool) {
-	if c == nil || !c.listPicker.Open {
+	if !c.listPicker.Open {
 		return components.SubSurface{}, false
 	}
 	return components.SubSurface{
@@ -258,36 +241,24 @@ func (c *ComposerPane) ListOverlay(ctx components.DrawContext) (components.SubSu
 
 // ClearInput clears the chat composer text.
 func (c *ComposerPane) ClearInput() {
-	if c == nil {
-		return
-	}
 	c.Chat.Value = ""
 	c.Chat.Cursor = 0
 }
 
 // SetInput replaces the composer text and places the cursor at the end.
 func (c *ComposerPane) SetInput(text string) {
-	if c == nil {
-		return
-	}
 	c.Chat.Value = text
 	c.Chat.Cursor = len(text)
 }
 
 // PendingSkills returns attached skill names awaiting submit.
 func (c *ComposerPane) PendingSkills() []string {
-	if c == nil {
-		return nil
-	}
 	out := make([]string, 0, len(c.Chat.PendingSkills))
 	out = append(out, c.Chat.PendingSkills...)
 	return out
 }
 
 func (c *ComposerPane) PendingImages() []imgutil.Attachment {
-	if c == nil {
-		return nil
-	}
 	out := make([]imgutil.Attachment, len(c.Chat.PendingImages))
 	copy(out, c.Chat.PendingImages)
 	return out
@@ -295,23 +266,16 @@ func (c *ComposerPane) PendingImages() []imgutil.Attachment {
 
 // ClearPendingImages removes attached images from the composer.
 func (c *ComposerPane) ClearPendingImages() {
-	if c != nil {
-		c.Chat.ClearPendingImages()
-	}
+	c.Chat.ClearPendingImages()
 }
 
 // ClearPendingSkills removes attached skills from the composer.
 func (c *ComposerPane) ClearPendingSkills() {
-	if c != nil {
-		c.Chat.ClearPendingSkills()
-	}
+	c.Chat.ClearPendingSkills()
 }
 
 // PendingRefs returns attached code references awaiting submit.
 func (c *ComposerPane) PendingRefs() []chat.Ref {
-	if c == nil {
-		return nil
-	}
 	out := make([]chat.Ref, len(c.Chat.PendingRefs))
 	copy(out, c.Chat.PendingRefs)
 	return out
@@ -319,23 +283,18 @@ func (c *ComposerPane) PendingRefs() []chat.Ref {
 
 // ClearPendingRefs removes attached references from the composer.
 func (c *ComposerPane) ClearPendingRefs() {
-	if c != nil {
-		c.Chat.ClearPendingRefs()
-	}
+	c.Chat.ClearPendingRefs()
 }
 
 // SyncBashBorder updates composer chrome for "!cmd" prefix.
 func (c *ComposerPane) SyncBashBorder(text string) {
-	if c != nil && c.submitter != nil {
+	if c.submitter != nil {
 		c.submitter.SyncBashBorder(text)
 	}
 }
 
 // CloseMentionSlash hides the @, /, ?, and "!" completers.
 func (c *ComposerPane) CloseMentionSlash() {
-	if c == nil {
-		return
-	}
 	c.mention.Hide()
 	c.Chat.MentionOpen = false
 	c.abandonMentionSearch()
@@ -348,9 +307,6 @@ func (c *ComposerPane) CloseMentionSlash() {
 
 // SetBashBorderActive toggles bash-mode border styling.
 func (c *ComposerPane) SetBashBorderActive(active bool) {
-	if c == nil {
-		return
-	}
 	if active {
 		c.Chat.BorderStyle = c.theme.ToolName
 	} else {
@@ -360,38 +316,32 @@ func (c *ComposerPane) SetBashBorderActive(active bool) {
 
 // FocusChat requests keyboard focus on the chat input.
 func (c *ComposerPane) FocusChat() {
-	if c != nil && c.requestFocus != nil {
+	if c.requestFocus != nil {
 		c.requestFocus(&c.Chat)
 	}
 }
 
 // AddPendingSkill attaches a skill badge to the composer.
 func (c *ComposerPane) AddPendingSkill(name string) {
-	if c != nil {
-		c.Chat.AddPendingSkill(name)
-		if c.onRedraw != nil {
-			c.onRedraw()
-		}
+	c.Chat.AddPendingSkill(name)
+	if c.onRedraw != nil {
+		c.onRedraw()
 	}
 }
 
 // AddPendingImage attaches an image to the composer.
 func (c *ComposerPane) AddPendingImage(att imgutil.Attachment) {
-	if c != nil {
-		c.Chat.AddPendingImage(att)
-		if c.onRedraw != nil {
-			c.onRedraw()
-		}
+	c.Chat.AddPendingImage(att)
+	if c.onRedraw != nil {
+		c.onRedraw()
 	}
 }
 
 // AddPendingRef attaches a code slice picked in the viewer to the composer.
 func (c *ComposerPane) AddPendingRef(r chat.Ref) {
-	if c != nil {
-		c.Chat.AddPendingRef(r)
-		if c.onRedraw != nil {
-			c.onRedraw()
-		}
+	c.Chat.AddPendingRef(r)
+	if c.onRedraw != nil {
+		c.onRedraw()
 	}
 }
 
@@ -399,9 +349,6 @@ func (c *ComposerPane) AddPendingRef(r chat.Ref) {
 // When thinkLevel is non-empty and not "off", it is appended (e.g. "claude-sonnet-4.20250514 • high").
 // Spans carry their own styles — BorderLabel.Style is ignored once Spans is set.
 func (c *ComposerPane) SetModelLabel(name, thinkLevel string) {
-	if c == nil {
-		return
-	}
 	id := c.theme.IdentityOrSuccess()
 	if thinkLevel != "" && thinkLevel != "off" {
 		c.Chat.TopRightLabel = layout.BorderLabel{
@@ -418,37 +365,26 @@ func (c *ComposerPane) SetModelLabel(name, thinkLevel string) {
 
 // SetBranchLabel updates the path label in the composer footer.
 func (c *ComposerPane) SetBranchLabel(text string) {
-	if c != nil {
-		c.Chat.BottomRightLabel.Text = text
-	}
+	c.Chat.BottomRightLabel.Text = text
 }
 
 // ClearBottomLeftLabel clears the composer status slot (activity or tokens).
 func (c *ComposerPane) ClearBottomLeftLabel() {
-	if c != nil {
-		c.Chat.BottomLeftLabel = layout.BorderLabel{}
-	}
+	c.Chat.BottomLeftLabel = layout.BorderLabel{}
 }
 
 // SetBottomLeftLabel sets the composer status slot (activity or tokens).
 func (c *ComposerPane) SetBottomLeftLabel(label layout.BorderLabel) {
-	if c != nil {
-		c.Chat.BottomLeftLabel = label
-	}
+	c.Chat.BottomLeftLabel = label
 }
 
 // SetPaletteCommands replaces Ctrl+K root commands.
 func (c *ComposerPane) SetPaletteCommands(cmds []palette.PaletteCommand) {
-	if c != nil {
-		c.palette.Commands = cmds
-	}
+	c.palette.Commands = cmds
 }
 
 // PushPalette opens or nests a palette submenu.
 func (c *ComposerPane) PushPalette(title string, cmds []palette.PaletteCommand) {
-	if c == nil {
-		return
-	}
 	if !c.palette.Open {
 		c.palette.Show()
 	}
@@ -460,9 +396,6 @@ func (c *ComposerPane) PushPalette(title string, cmds []palette.PaletteCommand) 
 
 // SetTheme updates composer widget themes.
 func (c *ComposerPane) SetTheme(th components.Theme) {
-	if c == nil {
-		return
-	}
 	c.theme = th
 	c.Chat.Theme = th
 	c.Chat.BorderStyle = th.Border
@@ -484,7 +417,7 @@ func (c *ComposerPane) SetTheme(th components.Theme) {
 
 // ApplyMentionResults updates the @ picker from async file search.
 func (c *ComposerPane) ApplyMentionResults(msg controller.MentionResultsMsg) {
-	if c == nil || msg.Gen != c.mentionGen || !c.mention.Open {
+	if msg.Gen != c.mentionGen || !c.mention.Open {
 		return
 	}
 	if msg.ErrText != "" {
@@ -509,9 +442,6 @@ func (c *ComposerPane) ApplyMentionResults(msg controller.MentionResultsMsg) {
 
 // PreferredHeight reports the chat input area height.
 func (c *ComposerPane) PreferredHeight(width int, method xui.WidthMethod) int {
-	if c == nil {
-		return 5
-	}
 	chatH := c.Chat.PreferredHeight(width, method)
 	minChatH := 5
 	if len(c.Chat.PendingSkills) > 0 {
@@ -525,9 +455,6 @@ func (c *ComposerPane) PreferredHeight(width int, method xui.WidthMethod) int {
 
 // DrawChat renders the chat input surface.
 func (c *ComposerPane) DrawChat(ctx components.DrawContext, width, height int) components.Surface {
-	if c == nil {
-		return components.Surface{}
-	}
 	return c.Chat.Draw(
 		ctx.WithConstraints(components.Size{}, components.Size{Width: width, Height: height}),
 	)
@@ -535,9 +462,6 @@ func (c *ComposerPane) DrawChat(ctx components.DrawContext, width, height int) c
 
 // PickerOverlays returns the completer surfaces anchored above the composer.
 func (c *ComposerPane) PickerOverlays(ctx components.DrawContext, listH, width int) []components.SubSurface {
-	if c == nil {
-		return nil
-	}
 	var out []components.SubSurface
 	if c.slash.Open {
 		c.slash.AnchorBottomY = listH
@@ -584,7 +508,7 @@ func (c *ComposerPane) PickerOverlays(ctx components.DrawContext, listH, width i
 
 // PaletteOverlay returns the Ctrl+K palette surface when open.
 func (c *ComposerPane) PaletteOverlay(ctx components.DrawContext) (components.SubSurface, bool) {
-	if c == nil || !c.palette.Open {
+	if !c.palette.Open {
 		return components.SubSurface{}, false
 	}
 	return components.SubSurface{
@@ -596,9 +520,6 @@ func (c *ComposerPane) PaletteOverlay(ctx components.DrawContext) (components.Su
 
 // Handle dispatches keyboard/mouse input to the composer area.
 func (c *ComposerPane) Handle(ctx *components.EventContext, ev xui.Event) {
-	if c == nil {
-		return
-	}
 	switch ev := ev.(type) {
 	case xui.FocusEvent:
 		if c.overlayBlocksComposer != nil && c.overlayBlocksComposer() {
@@ -806,9 +727,6 @@ func (c *ComposerPane) handleEscape(ctx *components.EventContext) bool {
 }
 
 func (c *ComposerPane) onMentionChange(active bool, query string) {
-	if c == nil {
-		return
-	}
 	if !active {
 		c.mention.Hide()
 		c.Chat.MentionOpen = false
@@ -829,9 +747,6 @@ func (c *ComposerPane) onMentionChange(active bool, query string) {
 }
 
 func (c *ComposerPane) onSlashChange(active bool, query string) {
-	if c == nil {
-		return
-	}
 	if !active {
 		c.slash.Hide()
 		c.Chat.SlashOpen = false
@@ -842,10 +757,7 @@ func (c *ComposerPane) onSlashChange(active bool, query string) {
 	c.mention.Hide()
 	c.Chat.MentionOpen = false
 	c.abandonMentionSearch()
-	var items []mention.Item
-	if c.commands != nil {
-		items = c.commands.FilterSlash(query)
-	}
+	items := c.commands.FilterSlash(query)
 	status := ""
 	if len(items) == 0 {
 		status = "No matching commands"
@@ -856,9 +768,6 @@ func (c *ComposerPane) onSlashChange(active bool, query string) {
 }
 
 func (c *ComposerPane) onQuestionChange(active bool, query string) {
-	if c == nil {
-		return
-	}
 	if !active {
 		c.question.Hide()
 		c.Chat.QuestionOpen = false
@@ -898,9 +807,6 @@ func (c *ComposerPane) abandonMentionSearch() {
 // in flight: without that, every keystroke leaves an fd process walking the
 // tree, and on a large one they pile up faster than they finish.
 func (c *ComposerPane) scheduleMentionSearch(query string) {
-	if c == nil {
-		return
-	}
 	c.abandonMentionSearch()
 	gen := c.mentionGen
 	cwd := c.cwd
@@ -940,9 +846,6 @@ func (c *ComposerPane) scheduleMentionSearch(query string) {
 }
 
 func (c *ComposerPane) acceptMention(item mention.Item) {
-	if c == nil {
-		return
-	}
 	_, start, end, ok := chat.ActiveMention(c.Chat.Value, c.Chat.Cursor)
 	if !ok {
 		start, end = c.Chat.Cursor, c.Chat.Cursor
@@ -975,7 +878,7 @@ func (c *ComposerPane) acceptMention(item mention.Item) {
 // imagesSupported is true when the active model opts into image attachments,
 // or when no model callback is wired (tests / partial setup).
 func (c *ComposerPane) imagesSupported() bool {
-	return c == nil || c.imageEnabled == nil || c.imageEnabled()
+	return c.imageEnabled == nil || c.imageEnabled()
 }
 
 func (c *ComposerPane) warnImagesDisabled() {
@@ -987,9 +890,6 @@ func (c *ComposerPane) warnImagesDisabled() {
 }
 
 func (c *ComposerPane) showToast(msg string, kind toast.ToastKind, d time.Duration) {
-	if c == nil {
-		return
-	}
 	c.bus.Publish(controller.ToastMsg{Message: msg, Kind: kind, Duration: d})
 }
 
@@ -1028,9 +928,6 @@ func resolveMentionPath(cwd, rel string) string {
 }
 
 func (c *ComposerPane) acceptQuestion(_ mention.Item) {
-	if c == nil {
-		return
-	}
 	_, start, end, ok := chat.ActiveQuestion(c.Chat.Value, c.Chat.Cursor)
 	if ok {
 		c.Chat.ReplaceRange(start, end, "")
@@ -1040,9 +937,6 @@ func (c *ComposerPane) acceptQuestion(_ mention.Item) {
 }
 
 func (c *ComposerPane) acceptSlash(item mention.Item) {
-	if c == nil {
-		return
-	}
 	start, end, insert := c.slashTarget(item)
 	c.Chat.ReplaceRange(start, end, insert)
 	c.slash.Hide()
@@ -1058,9 +952,6 @@ func (c *ComposerPane) acceptSlash(item mention.Item) {
 // completeSlash fills the composer with the command and stops there.
 // Enter on a no-arg command runs it; Tab must only complete.
 func (c *ComposerPane) completeSlash(item mention.Item) {
-	if c == nil {
-		return
-	}
 	start, end, insert := c.slashTarget(item)
 	// The trailing space closes the command token; without it ActiveSlash keeps
 	// matching and the picker would reopen on the command just inserted.
@@ -1078,9 +969,7 @@ func (c *ComposerPane) slashTarget(item mention.Item) (start, end int, insert st
 	if !ok {
 		start, end = 0, c.Chat.Cursor
 	}
-	if c.commands != nil {
-		insert = c.commands.LookupInsert(item.Path)
-	}
+	insert = c.commands.LookupInsert(item.Path)
 	if insert == "" {
 		insert = "/" + item.Path
 	}

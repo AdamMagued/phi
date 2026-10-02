@@ -81,20 +81,11 @@ func (b *Builtin) Bind(
 	cwd func() string,
 	streamActive func() bool,
 ) {
-	if b == nil {
-		return
-	}
-	if b.Ext != nil {
-		b.Ext.Submitter = submitter
-		b.Ext.CommandCtx = commandCtx
-	}
-	if b.Sessions != nil {
-		b.Sessions.OpenPicker = openPicker
-		b.Sessions.StreamActive = streamActive
-	}
-	if b.Branches != nil {
-		b.Branches.OpenOverlay = openBranchPicker
-		b.Branches.Dir = cwd
-		b.Branches.StreamActive = streamActive
-	}
+	b.Ext.Submitter = submitter
+	b.Ext.CommandCtx = commandCtx
+	b.Sessions.OpenPicker = openPicker
+	b.Sessions.StreamActive = streamActive
+	b.Branches.OpenOverlay = openBranchPicker
+	b.Branches.Dir = cwd
+	b.Branches.StreamActive = streamActive
 }

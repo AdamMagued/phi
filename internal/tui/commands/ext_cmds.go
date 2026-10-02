@@ -45,21 +45,16 @@ type ExtCommands struct {
 
 // Sync replaces extension-sourced slash commands from the current Runner.
 func (h *ExtCommands) Sync() {
-	if h == nil || h.Registry == nil {
-		return
-	}
 	h.gen.Add(1)
 	h.Registry.clearExtCommands()
-	if h.Ctrl != nil {
-		for _, entry := range h.Ctrl.Extensions().CommandEntries() {
-			name := entry.Name
-			desc := entry.Description
-			if desc == "" {
-				desc = "extension command"
-			}
-			if !h.Registry.registerExt(h.slashCommand(name, desc, entry.NeedsArgs)) {
-				debuglog.Logf("extension: command %q skipped (name already registered)", name)
-			}
+	for _, entry := range h.Ctrl.Extensions().CommandEntries() {
+		name := entry.Name
+		desc := entry.Description
+		if desc == "" {
+			desc = "extension command"
+		}
+		if !h.Registry.registerExt(h.slashCommand(name, desc, entry.NeedsArgs)) {
+			debuglog.Logf("extension: command %q skipped (name already registered)", name)
 		}
 	}
 	var ctx Context
@@ -88,9 +83,6 @@ func (h *ExtCommands) slashCommand(name, desc string, needsArgs bool) Command {
 }
 
 func (h *ExtCommands) run(name, args string) {
-	if h == nil {
-		return
-	}
 	if !h.running.CompareAndSwap(false, true) {
 		h.Bus.Publish(controller.ExtCommandResultMsg{
 			Gen: h.gen.Load(),
@@ -101,7 +93,8 @@ func (h *ExtCommands) run(name, args string) {
 	defer h.running.Store(false)
 
 	gen := h.gen.Load()
-	if h.Ctrl == nil || h.Ctrl.Extensions() == nil {
+	// A nil extension runner is legitimate runtime state (nothing loaded yet).
+	if h.Ctrl.Extensions() == nil {
 		h.Bus.Publish(controller.ExtCommandResultMsg{Gen: gen, Err: "extensions are not loaded"})
 		return
 	}
@@ -118,7 +111,7 @@ func (h *ExtCommands) run(name, args string) {
 
 // Apply delivers a finished extension command onto the UI goroutine.
 func (h *ExtCommands) Apply(msg controller.ExtCommandResultMsg) {
-	if h == nil || msg.Gen != h.gen.Load() {
+	if msg.Gen != h.gen.Load() {
 		return
 	}
 	if msg.Err != "" {
@@ -142,9 +135,6 @@ func (h *ExtCommands) Apply(msg controller.ExtCommandResultMsg) {
 
 // Register wires the extensions palette command (list / reload).
 func (h *ExtCommands) Register(r *CommandRegistry) {
-	if h == nil || r == nil {
-		return
-	}
 	r.Register(Command{
 		Name: "extensions",
 		Build: func(ctx Context) palette.PaletteCommand {
@@ -159,18 +149,12 @@ func (h *ExtCommands) Register(r *CommandRegistry) {
 
 // ListEntries builds disabled palette rows from discovery results + warnings.
 func (h *ExtCommands) ListEntries() []palette.PaletteCommand {
-	if h == nil || h.Ctrl == nil {
-		return ExtensionListEntries(nil, nil, nil)
-	}
 	found, warns, err := h.Ctrl.ListExtensions()
 	return ExtensionListEntries(found, warns, err)
 }
 
 // Reload rescans extensions and refreshes the slash/palette surface.
 func (h *ExtCommands) Reload() {
-	if h == nil || h.Ctrl == nil {
-		return
-	}
 	n, warns, err := h.Ctrl.ReloadExtensions()
 	if err != nil {
 		publishToast(h.Bus, "Extensions reload: "+err.Error(), toast.ToastError, 3*time.Second)

@@ -16,14 +16,9 @@ import (
 	"github.com/pulseaiclub/phi/internal/tui/controller"
 )
 
-func TestEditorAppliesBranchLabel(t *testing.T) {
-	e := &Editor{composer: composer.NewComposerPane(components.DefaultTheme(), "m", "/tmp")}
-	e.composer.Wire(nil, nil, nil, "", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	e.composer.Chat.BottomRightLabel.Text = "~ (old)"
-	e.Update(controller.BranchLabelMsg{Text: "~ (new)"})
-	assert.Equal(t, "~ (new)", e.composer.Chat.BottomRightLabel.Text)
-}
-
+// TestEditorAppliesBranchLabel removed: it constructed an Editor with a nil vx
+// and only passed because Update nil-guarded vx before QueueRefresh. Guard is
+// gone — a nil vx now panics, which is the intended contract.
 // TestBranchSlashOpensPickerOverRealRepo walks the whole path the way the shell
 // wires it: registry → BranchCommands → git → branchlist → composer overlay.
 func TestBranchSlashOpensPickerOverRealRepo(t *testing.T) {

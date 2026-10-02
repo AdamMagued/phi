@@ -68,9 +68,6 @@ func (r *CommandRegistry) Register(cmd Command) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.by == nil {
-		r.by = make(map[string]int)
-	}
 	if i, ok := r.by[name]; ok {
 		r.cmds[i] = cmd
 		return
@@ -92,9 +89,6 @@ func (r *CommandRegistry) registerExt(cmd Command) bool {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.by == nil {
-		r.by = make(map[string]int)
-	}
 	if i, ok := r.by[name]; ok {
 		if !r.cmds[i].fromExt {
 			return false

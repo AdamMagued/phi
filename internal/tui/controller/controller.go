@@ -60,12 +60,6 @@ type EngineController struct {
 // NewController returns a live EngineController. proj must be non-nil.
 // Failure returns (nil, err), never a half-initialized value.
 func NewController(bus *Bus, proj *project.Project, cwd string) (*EngineController, error) {
-	if bus == nil {
-		return nil, errors.New("tui: nil bus")
-	}
-	if proj == nil {
-		return nil, errors.New("tui: nil project")
-	}
 	if strings.TrimSpace(cwd) == "" {
 		var err error
 		cwd, err = os.Getwd()
@@ -183,9 +177,7 @@ func (c *EngineController) SetAllowAll(v bool) {
 
 func (c *EngineController) SetAgentsEnabled(v bool) {
 	c.agentsEnabled.Store(v)
-	if c.engine != nil {
-		c.engine.SetJobs(c.engineJobs())
-	}
+	c.engine.SetJobs(c.engineJobs())
 }
 
 func (c *EngineController) modelForRole(role job.Role) llm.ModelConfig {
@@ -230,18 +222,13 @@ func (c *EngineController) Extensions() *extension.Runner {
 }
 
 func (c *EngineController) ReloadExtensions() (loaded int, warns []extension.Warning, err error) {
-	if c.proj == nil {
-		return 0, nil, errors.New("project not available")
-	}
 	r, warns, err := extension.Load(c.proj.Global().ExtensionsDir(), c.proj.ExtensionsDir())
 	if err != nil {
 		return 0, warns, err
 	}
 	logExtensionWarnings(warns)
 	c.swapExtensionRunner(r)
-	if c.engine != nil {
-		c.engine.SetExtensions(r)
-	}
+	c.engine.SetExtensions(r)
 	if r == nil {
 		return 0, warns, nil
 	}
@@ -258,18 +245,12 @@ func (c *EngineController) swapExtensionRunner(r *extension.Runner) {
 }
 
 func (c *EngineController) ListExtensions() ([]extension.Discovered, []extension.Warning, error) {
-	if c.proj == nil {
-		return nil, nil, errors.New("project not available")
-	}
 	return extension.Discover(c.proj.Global().ExtensionsDir(), c.proj.ExtensionsDir())
 }
 
 // loadExtensions discovers ~/.phi/extensions and <cwd>/.phi/extensions.
 // Load errors are non-fatal (fail-open: no extensions).
 func loadExtensions(proj *project.Project) *extension.Runner {
-	if proj == nil {
-		return nil
-	}
 	r, warns, err := extension.Load(proj.Global().ExtensionsDir(), proj.ExtensionsDir())
 	if err != nil {
 		debuglog.Logf("extension: load failed: %v", err)
@@ -293,7 +274,8 @@ func (c *EngineController) bindExtensionHost(r *extension.Runner) {
 	if c.engine != nil {
 		cwd = c.engine.SessionCwd()
 		sessionID = c.engine.SessionID()
-	} else if c.proj != nil {
+	} else {
+		// NewController binds the host before the engine exists.
 		cwd = c.proj.Root()
 	}
 	r.Bind(ext.HostOpts{
@@ -369,7 +351,7 @@ func (c *EngineController) askPermission(
 	if r.AllowSession || r.AllowPersistent {
 		c.allowAll.Store(true)
 	}
-	if r.AllowPersistent && c.proj != nil {
+	if r.AllowPersistent {
 		_ = project.SetDangerouslyAllowAll(c.proj.Global(), true)
 	}
 	return permission.AskResult{Approved: r.Approved, Feedback: r.Feedback}, nil
@@ -409,9 +391,6 @@ func (c *EngineController) SetModel(name string) error {
 	if name == "" {
 		return errors.New("empty model name")
 	}
-	if c.proj == nil {
-		return errors.New("project not available")
-	}
 	if err := c.proj.LoadConfig(); err != nil {
 		return err
 	}
@@ -424,9 +403,6 @@ func (c *EngineController) SetModel(name string) error {
 	}
 	c.Cancel()
 	c.initGate(c.proj.Config().Permissions)
-	if c.engine == nil {
-		return errors.New("agent not configured")
-	}
 	c.engine.SetPermission(c.gate, c.askPermission)
 	c.engine.SetContinueAsk(c.askContinue)
 	c.engine.SetJobs(c.engineJobs())
@@ -442,9 +418,7 @@ func (c *EngineController) SetModel(name string) error {
 func (c *EngineController) SetThinkLevel(mode llm.ThinkMode) {
 	c.modelCfg.Think.Mode = mode
 	c.modelCfg.Think.Enabled = mode != llm.Off
-	if c.engine != nil {
-		c.engine.SetModel(c.modelCfg)
-	}
+	c.engine.SetModel(c.modelCfg)
 }
 
 // ThinkLevel returns the current thinking mode.
@@ -462,9 +436,6 @@ func (c *EngineController) ImageEnabled() bool {
 }
 
 func (c *EngineController) SessionID() string {
-	if c.engine == nil {
-		return ""
-	}
 	return c.engine.SessionID()
 }
 
@@ -473,16 +444,10 @@ func (c *EngineController) SessionDir() string {
 }
 
 func (c *EngineController) LiveJobCount() int {
-	if c.jobs == nil {
-		return 0
-	}
 	return c.jobs.LiveCount()
 }
 
 func (c *EngineController) SessionFile() string {
-	if c.engine == nil {
-		return ""
-	}
 	return c.engine.SessionFile()
 }
 
@@ -561,9 +526,6 @@ func (c *EngineController) resolveModel() (llm.ModelConfig, error) {
 	if c.modelCfg.Name != "" {
 		return c.modelCfg, nil
 	}
-	if c.proj == nil {
-		return llm.ModelConfig{}, errors.New("project not available")
-	}
 	if err := c.proj.LoadConfig(); err != nil {
 		return llm.ModelConfig{}, err
 	}
@@ -631,13 +593,8 @@ func (c *EngineController) Cancel() {
 func (c *EngineController) Close() {
 	c.sessionShutdown("quit", c.SessionID())
 	c.Cancel()
-	if c.unsubJobs != nil {
-		c.unsubJobs()
-		c.unsubJobs = nil
-	}
-	if c.jobs != nil {
-		_ = c.jobs.Close(context.Background())
-	}
+	c.unsubJobs()
+	_ = c.jobs.Close(context.Background())
 	if c.mcpPool != nil {
 		_ = c.mcpPool.Close()
 		c.mcpPool = nil
@@ -710,9 +667,7 @@ func (c *EngineController) waitOrDone(ctx context.Context, gen int, d time.Durat
 }
 
 func (c *EngineController) publish(m Msg) {
-	if c.bus != nil {
-		c.bus.Publish(m)
-	}
+	c.bus.Publish(m)
 }
 
 func (c *EngineController) publishLoopError(gen int, errText string) {

@@ -17,7 +17,7 @@ type SessionCommands struct {
 	Footer     *footer.FooterChrome
 	Bus        *controller.Bus
 	SyncHooks  func()
-	// OpenPicker opens the session list overlay. When nil, Show toasts only.
+	// OpenPicker opens the session list overlay (wired by Builtin.Bind).
 	OpenPicker func(items []session.SessionMeta, currentID string)
 	// StreamActive reports whether resume/clear should be blocked.
 	StreamActive func() bool
@@ -45,9 +45,6 @@ func NewSessionCommands(
 
 // Register wires /sessions and /clear into r.
 func (s *SessionCommands) Register(r *CommandRegistry) {
-	if s == nil || r == nil {
-		return
-	}
 	r.Register(Command{
 		Name:        "sessions",
 		Description: "Browse and resume sessions for this directory",
@@ -72,9 +69,6 @@ func (s *SessionCommands) Register(r *CommandRegistry) {
 
 // Show opens the session picker for the current session directory.
 func (s *SessionCommands) Show() {
-	if s == nil {
-		return
-	}
 	dir, currentID := s.dirAndID()
 	list, err := session.ListSessions(dir)
 	if err != nil {
@@ -83,10 +77,6 @@ func (s *SessionCommands) Show() {
 	}
 	if len(list) == 0 {
 		publishToast(s.Bus, "No sessions for this directory", toast.ToastWarning, 3*time.Second)
-		return
-	}
-	if s.OpenPicker == nil {
-		publishToast(s.Bus, "Session picker unavailable", toast.ToastError, 3*time.Second)
 		return
 	}
 	s.OpenPicker(list, currentID)
@@ -108,9 +98,6 @@ func (s *SessionCommands) dirAndID() (dir, currentID string) {
 
 // Accept resumes the chosen session (used by the session list overlay).
 func (s *SessionCommands) Accept(id string) {
-	if s == nil {
-		return
-	}
 	if s.StreamActive != nil && s.StreamActive() {
 		publishToast(s.Bus, "Cannot resume while a reply or command is running", toast.ToastWarning, 3*time.Second)
 		return
@@ -120,9 +107,6 @@ func (s *SessionCommands) Accept(id string) {
 
 // resume loads a prior session by id into the UI.
 func (s *SessionCommands) resume(id string) {
-	if s == nil {
-		return
-	}
 	warn, err := s.Ctrl.Resume(id)
 	if err != nil {
 		publishToast(s.Bus, err.Error(), toast.ToastError, 4*time.Second)
@@ -148,9 +132,6 @@ func (s *SessionCommands) resume(id string) {
 
 // Clear starts a new empty session. Blocks while a stream or extension command is active.
 func (s *SessionCommands) Clear() {
-	if s == nil {
-		return
-	}
 	if s.StreamActive != nil && s.StreamActive() {
 		publishToast(s.Bus, "Cannot clear while a reply or command is running", toast.ToastWarning, 3*time.Second)
 		return

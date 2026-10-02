@@ -101,9 +101,6 @@ func fitBorderLabel(l *BorderLabel, maxW int, method xui.WidthMethod) (spans []f
 }
 
 func paintFittedSpans(s *components.Surface, x, y int, spans []fittedSpan, method xui.WidthMethod) {
-	if s == nil {
-		return
-	}
 	for _, sp := range spans {
 		s.Print(x, y, sp.Text, sp.Style, method)
 		x += xui.StringWidth(sp.Text, method)

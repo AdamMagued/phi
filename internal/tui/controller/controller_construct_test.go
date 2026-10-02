@@ -9,15 +9,6 @@ import (
 	"github.com/pulseaiclub/phi/internal/project"
 )
 
-func TestNewController_RequiresCollaborators(t *testing.T) {
-	bus := NewBus(nil)
-	_, err := NewController(nil, &project.Project{}, t.TempDir())
-	assert.Error(t, err)
-
-	_, err = NewController(bus, nil, t.TempDir())
-	assert.Error(t, err)
-}
-
 func TestNewController_ReadyEngine(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

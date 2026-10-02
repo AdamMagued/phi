@@ -33,9 +33,6 @@ func NewSpinner(style xui.Style) *Spinner {
 
 // Tick advances the spinner to the next frame.
 func (s *Spinner) Tick() {
-	if s == nil {
-		return
-	}
 	s.Frame++
 }
 
@@ -59,7 +56,7 @@ func (s *Spinner) Draw(_ components.DrawContext) components.Surface {
 
 // Glyph returns the current 1-cell spinner character (tool / thinking rows).
 func (s *Spinner) Glyph() string {
-	if s == nil || len(s.frames) == 0 {
+	if len(s.frames) == 0 {
 		return "⋯"
 	}
 	return s.frames[s.Frame%len(s.frames)]
@@ -68,9 +65,6 @@ func (s *Spinner) Glyph() string {
 // ForEachFlowCell walks text with a traveling highlight for the status slot.
 // lit marks the head/trail graphemes; the rest stay off-style.
 func (s *Spinner) ForEachFlowCell(text string, fn func(ch string, lit bool)) {
-	if fn == nil {
-		return
-	}
 	clusters := graphemeClusters(text)
 	if len(clusters) == 0 {
 		return
