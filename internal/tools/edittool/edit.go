@@ -95,7 +95,8 @@ func runEdit(ctx context.Context, in editInput) (tooldef.Result, error) {
 	}
 	if len(sections) == 0 {
 		return tooldef.Result{}, applyError{
-			atomicityNotice + "\nmissing file target: start the payload with *** SM:EDIT relative/path"}
+			atomicityNotice + "\nmissing file target: start the payload with *** SM:EDIT relative/path",
+		}
 	}
 
 	files := make(map[string]fileRead, len(sections))

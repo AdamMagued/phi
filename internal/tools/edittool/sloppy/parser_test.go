@@ -16,7 +16,10 @@ func mustParse(t *testing.T, input string) []Section {
 }
 
 func TestParseBasicReplace(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT a.ts\n*** SM:FIND\nconst timeout = 1000;\n*** SM:PUT\nconst timeout = 5000;\n")
+	sections := mustParse(
+		t,
+		"*** SM:EDIT a.ts\n*** SM:FIND\nconst timeout = 1000;\n*** SM:PUT\nconst timeout = 5000;\n",
+	)
 	if len(sections) != 1 || sections[0].Path != "a.ts" || len(sections[0].Ops) != 1 {
 		t.Fatalf("sections = %+v, want one a.ts section with one op", sections)
 	}
@@ -49,7 +52,10 @@ func TestParseAllFlag(t *testing.T) {
 	if !sections[0].Ops[0].All {
 		t.Error("op must inherit the SM:EDIT all flag")
 	}
-	sections = mustParse(t, "*** SM:EDIT a.ts all\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:EDIT\n*** SM:FIND\nz\n*** SM:PUT\nw\n")
+	sections = mustParse(
+		t,
+		"*** SM:EDIT a.ts all\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:EDIT\n*** SM:FIND\nz\n*** SM:PUT\nw\n",
+	)
 	ops := sections[0].Ops
 	if len(ops) != 2 {
 		t.Fatalf("ops = %+v, want two", ops)
@@ -72,7 +78,10 @@ func TestParseCoalescesSectionsInFirstSeenOrder(t *testing.T) {
 }
 
 func TestParseAfterInsert(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT src/retry.ts\n*** SM:FIND\n\tlimit: number;\n*** SM:AFTER\n\tdelayMs: number;\n")
+	sections := mustParse(
+		t,
+		"*** SM:EDIT src/retry.ts\n*** SM:FIND\n\tlimit: number;\n*** SM:AFTER\n\tdelayMs: number;\n",
+	)
 	op := sections[0].Ops[0]
 	if op.Rewrite != (Rewrite{Kind: RewriteInsert, Text: "\tdelayMs: number;"}) {
 		t.Errorf("rewrite = %+v, want SM:AFTER insert", op.Rewrite)

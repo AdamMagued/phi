@@ -10,7 +10,7 @@ import (
 // the common forms: gap-capturing replacement and inline selection.
 func benchPayload(ops int) string {
 	var b strings.Builder
-	for i := 0; i < ops; i++ {
+	for i := range ops {
 		b.WriteString("*** SM:EDIT src/file")
 		b.WriteString(strconv.Itoa(i % 7))
 		b.WriteString(".ts\n*** SM:FIND\nfunction step")

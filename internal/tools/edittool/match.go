@@ -147,14 +147,6 @@ type candidate struct {
 	literalGaps    bool  // located through the literal fallback
 }
 
-// compiledOp is one FIND-anchored edit prepared for application.
-type compiledOp struct {
-	op     sloppy.Operation
-	pat    *compiledPattern
-	number int
-	path   string
-}
-
 // compilePattern turns the parser's FIND body into the matching form.
 func compilePattern(pat sloppy.Pattern, number int) (*compiledPattern, error) {
 	if strings.TrimSpace(pat.Body) == "" {
@@ -165,7 +157,10 @@ func compilePattern(pat sloppy.Pattern, number int) (*compiledPattern, error) {
 		return nil, failf("Operation %d %s", number, err)
 	}
 
-	c := &compiledPattern{body: pat.Body, edges: edgeGaps{leading: pat.EdgeGaps.Leading, trailing: pat.EdgeGaps.Trailing}}
+	c := &compiledPattern{
+		body:  pat.Body,
+		edges: edgeGaps{leading: pat.EdgeGaps.Leading, trailing: pat.EdgeGaps.Trailing},
+	}
 	selectionAt := make(map[int][]patToken, len(pat.Selections))
 	for i, sel := range pat.Selections {
 		selectionAt[tokOfSel[i]] = selectionTokens(pat.Body, sel)
@@ -447,7 +442,7 @@ func fuzzyOccurrences(content, pattern string, allowPunctuation bool) []occurren
 			}
 			text := content[contentAt[start]:contentAt[start+length]]
 			signatureMatch := operatorSignature(text) == operatorSignature(pattern)
-			if !signatureMatch && !(allowPunctuation && differsByOnePunctuationInsertion(pattern, text)) {
+			if !signatureMatch && (!allowPunctuation || !differsByOnePunctuationInsertion(pattern, text)) {
 				continue
 			}
 			distance := levenshteinDistance(pattern, text)

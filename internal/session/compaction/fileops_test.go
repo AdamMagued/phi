@@ -18,8 +18,18 @@ func TestExtractPathsFromArgs(t *testing.T) {
 		want []string
 	}{
 		{name: "path field", tool: "read", args: `{"path":"a/b.go"}`, want: []string{"a/b.go"}},
-		{name: "file_path field", tool: "write", args: `{"file_path":"x/y.txt","content":""}`, want: []string{"x/y.txt"}},
-		{name: "path takes precedence over file_path", tool: "read", args: `{"path":"p","file_path":"fp"}`, want: []string{"p"}},
+		{
+			name: "file_path field",
+			tool: "write",
+			args: `{"file_path":"x/y.txt","content":""}`,
+			want: []string{"x/y.txt"},
+		},
+		{
+			name: "path takes precedence over file_path",
+			tool: "read",
+			args: `{"path":"p","file_path":"fp"}`,
+			want: []string{"p"},
+		},
 		{name: "empty string", tool: "read", args: `""`, want: nil},
 		{name: "invalid JSON", tool: "read", args: `{path}`, want: nil},
 		{name: "empty object", tool: "read", args: `{}`, want: nil},
@@ -69,7 +79,12 @@ func TestFileOperation_extractMessageContent(t *testing.T) {
 				{Function: llm.Function{Name: "read", Arguments: `{"path":"a.go"}`}},
 				{Function: llm.Function{Name: "read", Arguments: `{"path":"b.go"}`}},
 				{Function: llm.Function{Name: "write", Arguments: `{"file_path":"c.go","content":"x"}`}},
-				{Function: llm.Function{Name: "edit", Arguments: `{"payload":"*** SM:EDIT d.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`}},
+				{
+					Function: llm.Function{
+						Name:      "edit",
+						Arguments: `{"payload":"*** SM:EDIT d.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`,
+					},
+				},
 			},
 		}
 		f.extractMessageContent(msg)
@@ -177,7 +192,12 @@ func TestExtractFileOperations(t *testing.T) {
 				Role: llm.RoleAssistant,
 				ToolCalls: []llm.ToolCall{
 					{Function: llm.Function{Name: "read", Arguments: `{"path":"msg_read.go"}`}},
-					{Function: llm.Function{Name: "edit", Arguments: `{"payload":"*** SM:EDIT msg_edit.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`}},
+					{
+						Function: llm.Function{
+							Name:      "edit",
+							Arguments: `{"payload":"*** SM:EDIT msg_edit.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`,
+						},
+					},
 				},
 			},
 		}

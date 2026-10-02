@@ -86,7 +86,11 @@ func (p *parser) run() ([]Section, error) {
 			}
 		case TokenPut, TokenAfter:
 			if p.havePut {
-				err = &ParseError{Op: p.ops + 1, Line: tok.Line, Msg: "duplicate " + tok.Kind.String() + " header without a *** SM:FIND anchor"}
+				err = &ParseError{
+					Op:   p.ops + 1,
+					Line: tok.Line,
+					Msg:  "duplicate " + tok.Kind.String() + " header without a *** SM:FIND anchor",
+				}
 			} else {
 				p.havePut = true
 				p.putKind = RewriteReplace
@@ -327,8 +331,8 @@ func hasSuffixFold(s, suffix string) bool {
 func trimOuterFence(input string) string {
 	first := input
 	rest := ""
-	if i := strings.IndexByte(input, '\n'); i >= 0 {
-		first, rest = input[:i], input[i+1:]
+	if before, after, ok := strings.Cut(input, "\n"); ok {
+		first, rest = before, after
 	}
 	if !isOuterFence(strings.TrimSpace(first)) {
 		return input

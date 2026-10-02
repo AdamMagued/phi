@@ -2,6 +2,7 @@ package edittool
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -100,8 +101,7 @@ func (a *applier) run() (string, error) {
 	}
 
 	result := a.content
-	for i := len(ordered) - 1; i >= 0; i-- {
-		edit := ordered[i]
+	for _, edit := range slices.Backward(ordered) {
 		result = result[:edit.start] + edit.replacement + result[edit.end:]
 	}
 	if result == a.content && len(a.notes) == 0 {
@@ -151,7 +151,10 @@ func (a *applier) plan() ([]plannedEdit, error) {
 			for _, candidate := range candidates {
 				offset := insertionOffset(a.content, candidate.matchEnd)
 				replacement := "\n" + strings.TrimSuffix(op.Rewrite.Text, "\n")
-				planned = append(planned, plannedEdit{start: offset, end: offset, replacement: replacement, number: number})
+				planned = append(
+					planned,
+					plannedEdit{start: offset, end: offset, replacement: replacement, number: number},
+				)
 				lastMatch = candidate.matchStart
 			}
 
@@ -206,7 +209,10 @@ func (a *applier) plan() ([]plannedEdit, error) {
 					}
 					return nil, a.noOpError(number, candidate.matchStart, 0, "")
 				}
-				planned = append(planned, plannedEdit{start: span[0], end: span[1], replacement: replacement, number: number})
+				planned = append(
+					planned,
+					plannedEdit{start: span[0], end: span[1], replacement: replacement, number: number},
+				)
 				changes++
 				lastMatch = candidate.matchStart
 			}
@@ -450,7 +456,7 @@ func frameLineInsertion(content string, offset int, desired string, blankSeparat
 }
 
 // expandFullLineDeletion widens a deletion that would leave only indentation
-// behind to whole lines, and swallows a neighbouring blank line at the seam.
+// behind to whole lines, and swallows a neighboring blank line at the seam.
 func expandFullLineDeletion(content string, span [2]int) [2]int {
 	if span[0] == span[1] {
 		return span

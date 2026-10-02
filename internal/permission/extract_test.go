@@ -35,7 +35,8 @@ func TestExtractAtUsesExplicitCwd(t *testing.T) {
 
 func TestExtractEditPayloadTargets(t *testing.T) {
 	req, err := Extract("edit", json.RawMessage(
-		`{"payload":"*** SM:EDIT a.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:EDIT b.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`))
+		`{"payload":"*** SM:EDIT a.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:EDIT b.go\n*** SM:FIND\nx\n*** SM:PUT\ny\n"}`,
+	))
 	require.NoError(t, err)
 	require.Equal(t, ActionEdit, req.Action)
 	require.Len(t, req.Paths, 2)

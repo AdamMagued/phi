@@ -3,6 +3,7 @@ package edittool
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -108,8 +109,8 @@ func identicalOutcomes(content string, op *sloppy.Operation, pat *compiledPatter
 			outcome = content
 			spans := make([][2]int, len(candidate.selectionSpans))
 			copy(spans, candidate.selectionSpans)
-			for i := len(spans) - 1; i >= 0; i-- {
-				outcome = outcome[:spans[i][0]] + pat.pairs[i].new + outcome[spans[i][1]:]
+			for i, span := range slices.Backward(spans) {
+				outcome = outcome[:span[0]] + pat.pairs[i].new + outcome[span[1]:]
 			}
 		default:
 			outcome = content[:candidate.matchStart] + op.Rewrite.Text + content[candidate.matchEnd:]
@@ -166,7 +167,7 @@ func sameAt(left, right candidate, indices []int) bool {
 	return true
 }
 
-func (a *applier) tooBroadError(number int) error {
+func (*applier) tooBroadError(number int) error {
 	return failf("Operation %d pattern is too broad; add another distinctive %s fragment.", number, gapMarker)
 }
 
@@ -195,8 +196,7 @@ func (a *applier) noMatchError(op *sloppy.Operation, pat *compiledPattern, numbe
 	switch {
 	case len(occurrences) == 0 && closestScore < 0.35 && closest != "" && a.standalone:
 		corrected := strings.Replace(pat.body, literal, closest, 1)
-		correction = fmt.Sprintf("Copy-ready corrected operation:\n%s",
-			operationPayload(*op, a.path, op.All, corrected))
+		correction = "Copy-ready corrected operation:\n" + operationPayload(*op, a.path, op.All, corrected)
 	case a.standalone:
 		correction = "No copy-ready correction — the closest current text is only a fuzzy match. " +
 			"Re-read the region above and rebuild *** SM:FIND from the exact current text."
@@ -218,8 +218,12 @@ func (a *applier) ambiguityError(op *sloppy.Operation, pat *compiledPattern, num
 	}
 	allRetry := ""
 	if sameRewriteForAll(op, pat, candidates) {
-		allRetry = fmt.Sprintf("\n\nAll candidates receive the same rewrite; retry every match:\n%s",
-			operationPayload(*op, a.path, true, pat.body))
+		allRetry = "\n\nAll candidates receive the same rewrite; retry every match:\n" + operationPayload(
+			*op,
+			a.path,
+			true,
+			pat.body,
+		)
 	}
 	return failf(
 		"Operation %d is ambiguous: %d ordered tuples match.\n\nAdd context that only the intended "+
@@ -234,9 +238,16 @@ func (a *applier) overlapError(previous, current plannedEdit) error {
 		"Operations %d and %d target overlapping original spans near lines %d and %d.\n\n"+
 			"Conflicting candidates:\n\nOperation %d near line %d:\n%s\n\nOperation %d near line %d:\n%s\n\n"+
 			"Keep whichever states the intended final text and drop the other.",
-		previous.number, current.number, firstLine, secondLine,
-		previous.number, firstLine, operationPayload(a.ops[previous.number-1], a.path, false, a.ops[previous.number-1].Pattern.Body),
-		current.number, secondLine, operationPayload(a.ops[current.number-1], a.path, false, a.ops[current.number-1].Pattern.Body),
+		previous.number,
+		current.number,
+		firstLine,
+		secondLine,
+		previous.number,
+		firstLine,
+		operationPayload(a.ops[previous.number-1], a.path, false, a.ops[previous.number-1].Pattern.Body),
+		current.number,
+		secondLine,
+		operationPayload(a.ops[current.number-1], a.path, false, a.ops[current.number-1].Pattern.Body),
 	)
 }
 
@@ -318,7 +329,7 @@ func editHeader(path string, all bool) string {
 // displayFragment quotes a pattern fragment for a diagnostic: short multi-line
 // fragments stay readable, everything else collapses to one quoted line.
 func displayFragment(text string) string {
-	if strings.Contains(text, "\n") && strings.Count(text, "\n")+1 <= 8 {
+	if strings.Contains(text, "\n") && strings.Count(text, "\n") < 8 {
 		return "\n" + text
 	}
 	compact := strings.Join(strings.Fields(text), " ")
@@ -364,7 +375,7 @@ func closestFragment(content, pattern string) (string, int, float64) {
 	}
 	var ranked []rankedLine
 	offset := 0
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		norm := normalizeText(line).text
 		if norm != "" {
 			denominator := max(len(pattern), len(norm), 1)

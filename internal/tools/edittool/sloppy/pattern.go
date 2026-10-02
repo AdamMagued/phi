@@ -92,7 +92,7 @@ func scanSelection(body string, i int) (PatternToken, Selection, int, error) {
 		return PatternToken{}, Selection{}, 0,
 			fmt.Errorf("selection misses the %q divider: use %sold%snew%s", selDivider, selOpen, selDivider, selClose)
 	}
-	if strings.Index(text[divAt+len(selDivider):], selDivider) >= 0 {
+	if strings.Contains(text[divAt+len(selDivider):], selDivider) {
 		return PatternToken{}, Selection{}, 0, fmt.Errorf("selection has multiple %q dividers", selDivider)
 	}
 	oldStart := i + len(selOpen)
@@ -101,7 +101,12 @@ func scanSelection(body string, i int) (PatternToken, Selection, int, error) {
 	tok := PatternToken{
 		Kind: PatternTokenLiteral, Text: body[oldStart:oldEnd], Start: oldStart, End: oldEnd,
 	}
-	sel := Selection{Old: body[oldStart:oldEnd], New: body[oldEnd+len(selDivider) : end-len(selClose)], Start: i, End: end}
+	sel := Selection{
+		Old:   body[oldStart:oldEnd],
+		New:   body[oldEnd+len(selDivider) : end-len(selClose)],
+		Start: i,
+		End:   end,
+	}
 	return tok, sel, end, nil
 }
 
@@ -126,7 +131,7 @@ func gapIsLineBounded(body string, i int) bool {
 
 // dropEdgeGaps removes "…" elisions at the pattern edges; they capture
 // nothing. Each dropped gap also takes the newline that joined it to its
-// neighbour with it.
+// neighbor with it.
 func dropEdgeGaps(p *Pattern) {
 	if len(p.Tokens) > 0 {
 		if t := p.Tokens[0]; t.Kind == PatternTokenGap && strings.TrimSpace(p.Body[:t.Start]) == "" {

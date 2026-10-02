@@ -101,7 +101,7 @@ func runRead(ctx context.Context, in readInput) (tooldef.Result, error) {
 	}
 	text := util.NormalizeLF(string(raw))
 	display := tooldef.RelToCwd(ctx, path)
-	header := fmt.Sprintf("@file %s", display)
+	header := "@file " + display
 
 	startLine := in.Offset
 	startLine = max(startLine, 1)

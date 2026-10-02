@@ -23,7 +23,7 @@ func TestNormalizeTextMapsNormalizedBytesBackToSource(t *testing.T) {
 	emojiStart := got.sourceStart(1, -1)
 	assert.Equal(t, 3, emojiStart)
 	assert.Equal(t, 7, got.sourceEnd(5, -1))
-	assert.Equal(t, source[emojiStart:got.sourceEnd(5, -1)], "😀")
+	assert.Equal(t, "😀", source[emojiStart:got.sourceEnd(5, -1)])
 	assert.Equal(t, 8, got.sourceStart(5, -1))
 }
 

@@ -54,11 +54,10 @@ func (l *Lexer) Next() bool {
 			continue
 		}
 		if l.skip {
-			if isHeader && header.Kind == TokenEdit {
-				l.skip = false
-			} else {
+			if !isHeader || header.Kind != TokenEdit {
 				continue
 			}
+			l.skip = false
 		}
 		if isHeader {
 			header.Line = l.line
@@ -97,8 +96,8 @@ func (l *Lexer) peekLine() (string, bool) {
 		return "", false
 	}
 	rest := l.input[l.off:]
-	if i := strings.IndexByte(rest, '\n'); i >= 0 {
-		return strings.TrimSuffix(rest[:i], "\r"), true
+	if before, _, ok := strings.Cut(rest, "\n"); ok {
+		return strings.TrimSuffix(before, "\r"), true
 	}
 	return rest, true
 }
@@ -148,7 +147,7 @@ func parseHeader(line string) (Token, bool) {
 // parseEditArg splits an SM:EDIT argument into a file path and the "all" flag.
 // A quoted path is JSON-decoded so paths may contain spaces or the word "all";
 // a malformed quote makes the whole line body text.
-func parseEditArg(arg string) (path string, all bool, ok bool) {
+func parseEditArg(arg string) (path string, all, ok bool) {
 	if strings.EqualFold(arg, "all") {
 		return "", true, true
 	}

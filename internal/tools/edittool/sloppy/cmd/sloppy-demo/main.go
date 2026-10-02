@@ -29,7 +29,11 @@ run(timeout)
 `
 
 func main() {
-	input := readInput()
+	input, err := readInput()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	fmt.Println("== payload ==")
 	fmt.Println(strings.TrimRight(input, "\n"))
 
@@ -46,19 +50,18 @@ func main() {
 
 // readInput returns the payload from stdin, or the built-in example when
 // stdin is a terminal or empty.
-func readInput() string {
+func readInput() (string, error) {
 	if stat, err := os.Stdin.Stat(); err != nil || stat.Mode()&os.ModeCharDevice != 0 {
-		return demoPayload
+		return demoPayload, nil
 	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "read stdin: %v\n", err)
-		os.Exit(1)
+		return "", fmt.Errorf("read stdin: %w", err)
 	}
 	if strings.TrimSpace(string(data)) == "" {
-		return demoPayload
+		return demoPayload, nil
 	}
-	return string(data)
+	return string(data), nil
 }
 
 func printSection(section sloppy.Section) {

@@ -1,7 +1,6 @@
 package edittool
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -173,6 +172,7 @@ func TestSelectionWithGapsCapturesAndReplays(t *testing.T) {
 		"*** SM:EDIT a.ts\n*** SM:FIND\nconst value = ⟪oldCall(…)│newCall(…) ?? fallback⟫;\nreport(value)\n")
 	assert.Equal(t, "const value = newCall(options) ?? fallback;\nreport(value);\n", result.Content)
 }
+
 func TestInlineSelectionsRewriteOnlyTheSelectedText(t *testing.T) {
 	result := mustApply(t,
 		"const timeout = readConfig().timeout ?? 1000;\nrun(timeout);\n",
@@ -282,5 +282,5 @@ func TestFailureLeavesContentUntouched(t *testing.T) {
 	_, err := applyOne(t, "alpha\nalpha\n",
 		"*** SM:EDIT a.txt\n*** SM:FIND\nalpha\n*** SM:PUT\nbeta\n")
 	require.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), atomicityNotice))
+	assert.Contains(t, err.Error(), atomicityNotice)
 }

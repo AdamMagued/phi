@@ -12,12 +12,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Hashline `edit` description now matches mismatch behavior: retry a `LINE#HASH`
-  mismatch with the error's updated references; re-read on a file TAG mismatch.
+- `edit` now takes a sloppy anchored payload (`*** SM:EDIT` / `*** SM:FIND` /
+  `*** SM:PUT`|`*** SM:AFTER`) with whitespace-tolerant matching, atomic
+  multi-file apply, and copy-ready failure payloads. It replaces hashline
+  range edits.
+- `read`/`grep` drop hashline chrome: `@file path` headers and `N|content`
+  lines replace `path#TAG` and `N#hash|content`.
 
 ### Deprecated
 
 ### Removed
+
+- Hashline `edit` (file TAG + `LINE#HASH` range edits) and the line/file hash
+  helpers behind it.
 
 ### Fixed
 

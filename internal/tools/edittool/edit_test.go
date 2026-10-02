@@ -15,7 +15,7 @@ import (
 func toolContext(t *testing.T) (context.Context, string) {
 	t.Helper()
 	dir := t.TempDir()
-	return tooldef.WithCwd(context.Background(), dir), dir
+	return tooldef.WithCwd(t.Context(), dir), dir
 }
 
 func writeFiles(t *testing.T, dir string, files map[string]string) {

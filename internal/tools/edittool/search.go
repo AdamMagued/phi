@@ -24,7 +24,13 @@ type search struct {
 
 // collectCandidates returns every way to anchor the pattern in content, plus
 // whether the search gave up early.
-func collectCandidates(content string, nt normText, pat *compiledPattern, mode matchMode, allowPunctuation bool) ([]candidate, bool) {
+func collectCandidates(
+	content string,
+	nt normText,
+	pat *compiledPattern,
+	mode matchMode,
+	allowPunctuation bool,
+) ([]candidate, bool) {
 	s := &search{
 		content:     content,
 		nt:          nt,
