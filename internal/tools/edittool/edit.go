@@ -14,16 +14,41 @@ import (
 	"github.com/pulseaiclub/phi/internal/util"
 )
 
+// The example block burns the gap and selection shapes into the model up
+// front; prose alone cost a failed round-trip per novel syntax mistake.
 var editDescription = `Edit files with an anchored patch: quote current text under *** SM:FIND, replace it under *** SM:PUT, or insert lines under *** SM:AFTER. Elide unchanged runs with ….
 
 <ops>
 - *** SM:EDIT relative/path.ts opens a file; bare *** SM:EDIT continues it. Repeat for more files: all edits apply atomically. Append " all" to change every match; JSON-quote paths with spaces.
 - *** SM:FIND body must match the file exactly once unless " all". Copy exact text and indentation from the latest read output — not from memory, diffs, or summaries. Use the smallest unique anchor; on ambiguity add parent context, never retry the bare line.
-- *** SM:PUT states the complete final text that replaces the whole FIND match; an empty body deletes it. *** SM:AFTER keeps the match and inserts its body after the last matched line. A FIND body carrying ⟪old│new⟫ selections needs no action header: each selection rewrites old to new in place. Omitting an action without selections is an error.
+- *** SM:PUT states the complete final text that replaces the whole FIND match; an empty body deletes it. *** SM:AFTER keeps the match and inserts its body after the last matched line. A FIND body carrying ⟪old│new⟫ selections needs no action header: each selection rewrites old to new in place, with exactly one "│" divider. Omitting an action without selections is an error.
 - Headers stand alone; bodies are raw lines until the next header or EOF, no closing delimiter. Never use diff prefixes (+/-/space) or @@ hunks. Edits address the original file; earlier edits never shift later anchors.
 - In FIND, … captures omitted text: a gap with content after it on its line stays on that line; a gap at line end spans lines. In PUT, each … re-emits the next capture in order. A whole-line … with no capture is an error — type those lines out.
 - PUT and AFTER indentation is written verbatim. Failure applies nothing and returns a copy-ready payload: resend it verbatim. For a new file or a whole-file rewrite use write.
-</ops>`
+</ops>
+
+<example>
+Keep skipped lines and rewrite one call — … captures in FIND replay in PUT order:
+*** SM:EDIT src/users.ts
+*** SM:FIND
+function load(…) {
+	…
+	return old(…);
+}
+*** SM:PUT
+function load(…) {
+	…
+	return fresh(…);
+}
+
+Small in-place rewrites ride inside FIND as ⟪old│new⟫; no action header:
+*** SM:EDIT src/app.ts
+*** SM:FIND
+total := ⟪a + b│sum(a, b)⟫
+if ⟪debug│verbose⟫ {
+	log.Printf("total=%d", total)
+}
+</example>`
 
 // EditTool returns the edit (sloppy) tool definition + handler.
 func EditTool() tooldef.Tool {

@@ -4,11 +4,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pulseaiclub/phi/internal/tools/edittool/sloppy"
 	"github.com/pulseaiclub/phi/internal/tools/tooldef"
 )
 
@@ -140,4 +142,64 @@ func TestEditToolReportsNotesFromUnchangedFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "const a = 1;\n", readFiles(t, dir, "a.ts")["a.ts"])
 	assert.Contains(t, result.Content, "already matches the file")
+}
+
+// descriptionExamples extracts the payload blocks from the description's
+// example section, dropping the prose line above each block.
+func descriptionExamples() []string {
+	start := strings.Index(editDescription, "<example>")
+	end := strings.LastIndex(editDescription, "</example>")
+	if start < 0 || end < 0 {
+		return nil
+	}
+	var payloads []string
+	for _, block := range strings.Split(editDescription[start+len("<example>"):end], "\n\n") {
+		lines := strings.Split(strings.TrimSpace(block), "\n")
+		for i, line := range lines {
+			if strings.HasPrefix(line, "*** SM:EDIT") {
+				payloads = append(payloads, strings.Join(lines[i:], "\n"))
+				break
+			}
+		}
+	}
+	return payloads
+}
+
+// The description teaches by example; an example that fails to parse or apply
+// would teach broken shapes, so every one runs through the engine.
+func TestEditDescriptionExamples(t *testing.T) {
+	payloads := descriptionExamples()
+	require.Len(t, payloads, 2)
+
+	t.Run("parses", func(t *testing.T) {
+		for _, payload := range payloads {
+			sections, err := sloppy.Parse(payload)
+			require.NoError(t, err, "example payload:\n%s", payload)
+			require.NotEmpty(t, sections)
+		}
+	})
+
+	t.Run("applies", func(t *testing.T) {
+		users, err := sloppy.Parse(payloads[0])
+		require.NoError(t, err)
+		// The unindented FIND must still anchor indented file text: the
+		// matching space drops whitespace, and captures keep file indentation.
+		result, err := Apply(
+			"function load(id, opts) {\n\tconst raw = fetch(id);\n\treturn old(id, opts);\n}\n",
+			users[0], false)
+		require.NoError(t, err)
+		assert.Equal(t,
+			"function load(id, opts) {\n\tconst raw = fetch(id);\n\treturn fresh(id, opts);\n}\n",
+			result.Content)
+
+		app, err := sloppy.Parse(payloads[1])
+		require.NoError(t, err)
+		result, err = Apply(
+			"total := a + b\nif debug {\n\tlog.Printf(\"total=%d\", total)\n}\n",
+			app[0], false)
+		require.NoError(t, err)
+		assert.Equal(t,
+			"total := sum(a, b)\nif verbose {\n\tlog.Printf(\"total=%d\", total)\n}\n",
+			result.Content)
+	})
 }
