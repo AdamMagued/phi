@@ -24,7 +24,7 @@ var editDescription = `Edit files with an anchored patch: quote current text und
 - *** SM:PUT states the complete final text that replaces the whole FIND match; an empty body deletes it. *** SM:AFTER keeps the match and inserts its body after the last matched line. A FIND body carrying ⟪old│new⟫ selections needs no action header: each selection rewrites old to new in place, with exactly one "│" divider. Omitting an action without selections is an error.
 - Headers stand alone; bodies are raw lines until the next header or EOF, no closing delimiter. Never use diff prefixes (+/-/space) or @@ hunks. Edits address the original file; earlier edits never shift later anchors.
 - In FIND, … captures omitted text: a gap with content after it on its line stays on that line; a gap at line end spans lines. In PUT, each … re-emits the next capture in order. A whole-line … with no capture is an error — type those lines out.
-- PUT and AFTER indentation is written verbatim. Failure applies nothing and returns a copy-ready payload: resend it verbatim. For a new file or a whole-file rewrite use write.
+- PUT and AFTER indentation is written verbatim. Failure applies nothing: a match failure returns a copy-ready payload to resend verbatim, a syntax error returns error[SMxxx] with the payload line and the fix. For a new file or a whole-file rewrite use write.
 </ops>
 
 <example>

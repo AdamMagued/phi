@@ -16,6 +16,24 @@ const (
 	gapMarkerLen = len(gapMarker)
 )
 
+// selectionSyntax is the shape a selection must have, for diagnostics.
+const selectionSyntax = selOpen + "old" + selDivider + "new" + selClose
+
+// patternError is a malformed FIND body: the failing byte offset within the
+// body, the width of the span to underline, and the report to render once the
+// parser has mapped the offset back to the payload line the model wrote.
+type patternError struct {
+	Offset int
+	Width  int
+	Code   string
+	Msg    string
+	Label  string
+	Help   string
+}
+
+// Error implements the error interface.
+func (e *patternError) Error() string { return e.Msg }
+
 // scanPattern compiles a FIND body into literal and gap tokens plus inline
 // selections. Tokens reference the body as substrings, so scanning allocates
 // nothing beyond the token slices themselves.
@@ -59,7 +77,15 @@ func scanPattern(body string) (Pattern, error) {
 			p.Selections = append(p.Selections, sel)
 			i = next
 		case strings.HasPrefix(body[i:], selClose):
-			return Pattern{}, fmt.Errorf("stray %q outside a selection", selClose)
+			return Pattern{}, &patternError{
+				Offset: i,
+				Width:  len(selClose),
+				Code:   codePatternStray,
+				Msg:    fmt.Sprintf("stray %s outside a selection", selClose),
+				Label:  fmt.Sprintf("no %s opened a selection here", selOpen),
+				Help: fmt.Sprintf("a %s closes %sold%snew%s; delete this marker, or type the whole selection.",
+					selClose, selOpen, selDivider, selClose),
+			}
 		default:
 			if lit < 0 {
 				lit = i
@@ -80,22 +106,40 @@ func scanSelection(body string, i int) (PatternToken, Selection, int, error) {
 	inner := body[i+len(selOpen):]
 	closeAt := strings.Index(inner, selClose)
 	if closeAt < 0 {
-		return PatternToken{}, Selection{}, 0, fmt.Errorf("unterminated %q selection", selOpen)
+		return PatternToken{}, Selection{}, 0, &patternError{
+			Offset: i,
+			Width:  len(selOpen),
+			Code:   codePatternOpen,
+			Msg:    fmt.Sprintf("unterminated %s selection", selOpen),
+			Label:  fmt.Sprintf("this %s never gets its closing %s", selOpen, selClose),
+			Help: fmt.Sprintf("a selection reads %sold%snew%s: the old text, one %s divider, then the new text.",
+				selOpen, selDivider, selClose, selDivider),
+		}
 	}
 	openAt := strings.Index(inner, selOpen)
 	if openAt >= 0 && openAt < closeAt {
-		return PatternToken{}, Selection{}, 0, fmt.Errorf("nested %q inside a selection", selOpen)
+		return PatternToken{}, Selection{}, 0, &patternError{
+			Offset: i + len(selOpen) + openAt,
+			Width:  len(selOpen),
+			Code:   codePatternNest,
+			Msg:    fmt.Sprintf("nested %s inside a selection", selOpen),
+			Label:  "selections do not nest",
+			Help:   fmt.Sprintf("close the open selection with %s before opening another %s.", selClose, selOpen),
+		}
 	}
 	text := inner[:closeAt]
 	divAt := strings.Index(text, selDivider)
 	if divAt < 0 {
-		return PatternToken{}, Selection{}, 0,
-			fmt.Errorf("selection misses the %q divider: use %sold%snew%s", selDivider, selOpen, selDivider, selClose)
+		return PatternToken{}, Selection{}, 0, selectionShapeError(codePatternDiv,
+			i, len(selOpen)+closeAt+len(selClose),
+			fmt.Sprintf("selection has no %s divider", selectionSyntax),
+			fmt.Sprintf("expected one %s between the current and the new text", selDivider))
 	}
 	if strings.Contains(text[divAt+len(selDivider):], selDivider) {
-		return PatternToken{}, Selection{}, 0, fmt.Errorf(
-			"selection has multiple %q dividers: keep one divider per selection, and state lines with a literal %s using a *** SM:PUT block instead",
-			selDivider, selDivider)
+		return PatternToken{}, Selection{}, 0, selectionShapeError(codePatternMulti,
+			i, len(selOpen)+closeAt+len(selClose),
+			fmt.Sprintf("selection has multiple %s dividers", selectionSyntax),
+			fmt.Sprintf("keep exactly one %s per selection", selDivider))
 	}
 	oldStart := i + len(selOpen)
 	oldEnd := oldStart + divAt
@@ -110,6 +154,20 @@ func scanSelection(body string, i int) (PatternToken, Selection, int, error) {
 		End:   end,
 	}
 	return tok, sel, end, nil
+}
+
+// selectionShapeError reports a selection whose marker pair is in place but
+// whose body is not "old│new".
+func selectionShapeError(code string, offset, width int, msg, label string) *patternError {
+	return &patternError{
+		Offset: offset,
+		Width:  width,
+		Code:   code,
+		Msg:    msg,
+		Label:  label,
+		Help: fmt.Sprintf("write %s; to state whole replacement lines — or to keep a literal %s — "+
+			"use a *** SM:PUT block instead.", selectionSyntax, selDivider),
+	}
 }
 
 // nextMarker returns the offset of the next marker lead byte at or after i,

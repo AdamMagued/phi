@@ -124,7 +124,7 @@ func TestEditToolRejectsEmptyAndTargetlessPayloads(t *testing.T) {
 
 	_, err = runEdit(ctx, editInput{Payload: "*** SM:FIND\nrun();\n*** SM:PUT\ngo();\n"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing file target")
+	assert.Contains(t, err.Error(), "error[SM101]: payload does not open with a file target")
 }
 
 func TestEditDetailListsTargetPaths(t *testing.T) {
@@ -153,7 +153,7 @@ func descriptionExamples() []string {
 		return nil
 	}
 	var payloads []string
-	for _, block := range strings.Split(editDescription[start+len("<example>"):end], "\n\n") {
+	for block := range strings.SplitSeq(editDescription[start+len("<example>"):end], "\n\n") {
 		lines := strings.Split(strings.TrimSpace(block), "\n")
 		for i, line := range lines {
 			if strings.HasPrefix(line, "*** SM:EDIT") {

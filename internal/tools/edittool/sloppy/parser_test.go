@@ -235,13 +235,16 @@ func TestParse(t *testing.T) {
 			}},
 		},
 		{
+			// A fenced payload keeps its authored line numbers: the fence
+			// line stays a blank line, so a diagnostic names the line the
+			// model counted.
 			name:  "strips an outer code fence",
 			input: "```text\n*** SM:EDIT a.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n```\n",
 			want: []Section{{
 				Path: "a.ts",
 				Ops: []Operation{{
 					Number: 1,
-					Line:   2,
+					Line:   3,
 					Pattern: Pattern{
 						Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "x", Start: 0, End: 1}},
 						Body:   "x",
@@ -281,30 +284,30 @@ func TestParseErrors(t *testing.T) {
 		{
 			name:  "prose without target",
 			input: "just some prose\n",
-			want:  "missing file target",
+			want:  "payload does not open with a file target",
 		},
 		{
 			name:  "bare SM:EDIT without path",
 			input: "*** SM:EDIT\n*** SM:FIND\nx\n*** SM:PUT\ny\n",
-			want:  "missing file target",
+			want:  "*** SM:EDIT has no file path",
 		},
 		{
 			name:  "find without action",
 			input: "*** SM:EDIT a.ts\n*** SM:FIND\nx\n",
 			op:    1,
-			want:  "missing *** SM:PUT or *** SM:AFTER action",
+			want:  "*** SM:FIND body is never rewritten",
 		},
 		{
 			name:  "after without anchor",
 			input: "*** SM:EDIT a.ts\n*** SM:AFTER\ny\n",
 			op:    1,
-			want:  "*** SM:AFTER requires a *** SM:FIND anchor",
+			want:  "*** SM:AFTER has no *** SM:FIND anchor",
 		},
 		{
 			name:  "duplicate action header",
 			input: "*** SM:EDIT a.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:PUT\nz\n",
 			op:    1,
-			want:  "duplicate SM:PUT header",
+			want:  "duplicate *** SM:PUT header",
 		},
 		{
 			name:  "stray close marker",

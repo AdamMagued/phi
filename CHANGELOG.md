@@ -18,6 +18,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   range edits.
 - `read`/`grep` drop hashline chrome: `@file path` headers and `N|content`
   lines replace `path#TAG` and `N#hash|content`.
+- `edit` syntax errors now report like a compiler: `error[SM103]` with the
+  payload line and column, the failing line with a caret under the offending
+  span, and one `help:` line with the fix. Misspelled headers, stray selection
+  markers, and empty file sections are diagnosed instead of silently read as
+  file content.
 - Renamed `/clear` slash command to `/new`. It starts a fresh session (new
   id, empty transcript) and leaves the previous one resumable via
   `/sessions`; the old name implied wiping the current conversation.
