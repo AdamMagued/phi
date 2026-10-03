@@ -480,9 +480,9 @@ func (c *EngineController) Resume(id string) (cwdWarning string, err error) {
 	return cwdWarning, nil
 }
 
-// Clear starts a brand-new persisted session. Caller must ensure no agent
+// NewSession starts a brand-new persisted session. Caller must ensure no agent
 // stream / local bash is in flight.
-func (c *EngineController) Clear() error {
+func (c *EngineController) NewSession() error {
 	prevID, err := c.beginSessionSwitch("new", "", false)
 	if err != nil {
 		return err
