@@ -23,6 +23,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   span, and one `help:` line with the fix. Misspelled headers, stray selection
   markers, and empty file sections are diagnosed instead of silently read as
   file content.
+- `edit` teaches its own failure modes: the description gains an
+  `<anti-patterns>` block (a second action with no `FIND` of its own under a
+  used-up `PUT`, a body line that spells a header, a selection missing its
+  divider) and a `<critical>` recap, and the diagnostics those shapes hit now
+  name the repair instead of the mistake. `edit_test.go` runs both blocks
+  through the parser, so the description cannot advertise a payload the engine
+  rejects.
 - Renamed `/clear` slash command to `/new`. It starts a fresh session (new
   id, empty transcript) and leaves the previous one resumable via
   `/sessions`; the old name implied wiping the current conversation.

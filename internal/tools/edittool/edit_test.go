@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -165,6 +166,37 @@ func descriptionExamples() []string {
 	return payloads
 }
 
+// descriptionAntiPatterns extracts the WRONG/RIGHT payload pairs from the
+// description's anti-pattern section. A RIGHT that only names another tool has
+// no payload and comes back empty.
+func descriptionAntiPatterns() (wrong, right []string) {
+	start := strings.Index(editDescription, "<anti-patterns>")
+	end := strings.LastIndex(editDescription, "</anti-patterns>")
+	if start < 0 || end < 0 {
+		return nil, nil
+	}
+	for block := range strings.SplitSeq(editDescription[start+len("<anti-patterns>"):end], "\n\n") {
+		lines := strings.Split(strings.TrimSpace(block), "\n")
+		marker := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "RIGHT") })
+		if marker < 0 {
+			continue
+		}
+		wrong = append(wrong, payloadBlock(lines[:marker]))
+		right = append(right, payloadBlock(lines[marker+1:]))
+	}
+	return wrong, right
+}
+
+// payloadBlock returns a block from its *** SM:EDIT header on, or "" when the
+// block has no payload at all.
+func payloadBlock(lines []string) string {
+	start := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, "*** SM:EDIT") })
+	if start < 0 {
+		return ""
+	}
+	return strings.Join(lines[start:], "\n")
+}
+
 // The description teaches by example; an example that fails to parse or apply
 // would teach broken shapes, so every one runs through the engine.
 func TestEditDescriptionExamples(t *testing.T) {
@@ -202,4 +234,49 @@ func TestEditDescriptionExamples(t *testing.T) {
 			"total := sum(a, b)\nif verbose {\n\tlog.Printf(\"total=%d\", total)\n}\n",
 			result.Content)
 	})
+}
+
+// Both directions of the anti-pattern block stay executable: a WRONG shape the
+// parser accepts would teach a broken rule, and a RIGHT shape that does not
+// parse is worse than no counter-example at all.
+func TestEditDescriptionAntiPatterns(t *testing.T) {
+	wrong, right := descriptionAntiPatterns()
+	require.Len(t, wrong, 3)
+	require.Len(t, right, 3)
+
+	for i, payload := range wrong {
+		require.NotEmpty(t, payload, "anti-pattern %d has no payload", i+1)
+		_, err := sloppy.Parse(payload)
+		require.Error(t, err, "anti-pattern %d must stay rejected:\n%s", i+1, payload)
+	}
+	for i, payload := range right {
+		if payload == "" {
+			continue // the repair names another tool instead of a payload
+		}
+		sections, err := sloppy.Parse(payload)
+		require.NoError(t, err, "repair %d must parse:\n%s", i+1, payload)
+		require.NotEmpty(t, sections)
+	}
+
+	t.Run("repairs apply", func(t *testing.T) {
+		require.NotEmpty(t, right[0])
+		require.NotEmpty(t, right[2])
+		for _, tc := range []struct{ payload, content, want string }{
+			{right[0], "x\n", "y\nz\n"},
+			{right[2], "const A = 1\n", "const A = 2\n"},
+		} {
+			sections, err := sloppy.Parse(tc.payload)
+			require.NoError(t, err)
+			result, err := Apply(tc.content, sections[0], false)
+			require.NoError(t, err, "payload:\n%s", tc.payload)
+			assert.Equal(t, tc.want, result.Content)
+		}
+	})
+}
+
+// The description is re-sent on every request, so its size is a budget rather
+// than a style choice. Counter-examples earn their bytes; trim prose before
+// raising this bound.
+func TestEditDescriptionStaysLean(t *testing.T) {
+	assert.Less(t, len(editDescription), 4096)
 }

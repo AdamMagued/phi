@@ -15,14 +15,19 @@ import (
 )
 
 // The example block burns the gap and selection shapes into the model up
-// front; prose alone cost a failed round-trip per novel syntax mistake.
-var editDescription = `Edit files with an anchored patch: quote current text under *** SM:FIND, replace it under *** SM:PUT, or insert lines under *** SM:AFTER. Elide unchanged runs with ….
+// front; prose alone cost a failed round-trip per novel syntax mistake. The
+// anti-pattern block does the same for the shapes the model gets wrong most
+// often, taken from real payload failures — and edit_test.go runs both blocks
+// through the engine, so the description cannot advertise a payload the parser
+// rejects or a rule the parser stopped enforcing.
+var editDescription = `Edit files with an anchored patch: quote current text under *** SM:FIND, replace it under *** SM:PUT, insert lines under *** SM:AFTER, or rewrite it in place with ⟪old│new⟫. Elide unchanged runs with ….
 
 <ops>
 - *** SM:EDIT relative/path.ts opens a file; bare *** SM:EDIT continues it. Repeat for more files: all edits apply atomically. Append " all" to change every match; JSON-quote paths with spaces.
 - *** SM:FIND body must match the file exactly once unless " all". Copy exact text and indentation from the latest read output — not from memory, diffs, or summaries. Use the smallest unique anchor; on ambiguity add parent context, never retry the bare line.
-- *** SM:PUT states the complete final text that replaces the whole FIND match; an empty body deletes it. *** SM:AFTER keeps the match and inserts its body after the last matched line. A FIND body carrying ⟪old│new⟫ selections needs no action header: each selection rewrites old to new in place, with exactly one "│" divider. Omitting an action without selections is an error.
-- Headers stand alone; bodies are raw lines until the next header or EOF, no closing delimiter. Never use diff prefixes (+/-/space) or @@ hunks. Edits address the original file; earlier edits never shift later anchors.
+- Each action header needs its own *** SM:FIND. *** SM:PUT states the complete final text that replaces the whole FIND match; an empty body deletes it. *** SM:AFTER keeps the match and inserts its body after the last matched line. A FIND body carrying ⟪old│new⟫ selections needs no action header: each selection rewrites old to new in place, with exactly one "│" divider. Omitting an action without selections is an error.
+- Anchors address the file as you read it, never as this payload rewrites it: an anchor cannot match text that an earlier operation in the same payload wrote. Plan every anchor against the current file, so earlier edits never shift later anchors.
+- Headers stand alone; bodies are raw lines until the next header or EOF, no closing delimiter. Never use diff prefixes (+/-/space) or @@ hunks.
 - In FIND, … captures omitted text: a gap with content after it on its line stays on that line; a gap at line end spans lines. In PUT, each … re-emits the next capture in order. A whole-line … with no capture is an error — type those lines out.
 - PUT and AFTER indentation is written verbatim. Failure applies nothing: a match failure returns a copy-ready payload to resend verbatim, a syntax error returns error[SMxxx] with the payload line and the fix. For a new file or a whole-file rewrite use write.
 </ops>
@@ -48,7 +53,49 @@ total := ⟪a + b│sum(a, b)⟫
 if ⟪debug│verbose⟫ {
 	log.Printf("total=%d", total)
 }
-</example>`
+</example>
+
+<anti-patterns>
+WRONG — the second action has no *** SM:FIND of its own, so the used-up PUT cannot host it.
+*** SM:EDIT a.go
+*** SM:FIND
+x
+*** SM:PUT
+y
+*** SM:AFTER
+z
+RIGHT — *** SM:PUT states the final text, so fold the inserted lines into it.
+*** SM:EDIT a.go
+*** SM:FIND
+x
+*** SM:PUT
+y
+z
+
+WRONG — a body line that spells a recognized header ends the body there, so the anchor is lost.
+*** SM:EDIT doc/tool.md
+*** SM:FIND
+Paste this example:
+*** SM:EDIT b.go
+*** SM:PUT
+const b = 2
+RIGHT — use write for files that document this syntax: a body line spelling a recognized header (*** SM:EDIT with a path, *** SM:FIND, *** SM:PUT, *** SM:AFTER) starts a new section and cannot be quoted.
+
+WRONG — a ⟪⟫ selection needs both sides.
+*** SM:EDIT a.go
+*** SM:FIND
+const A = ⟪1⟫
+RIGHT — write ⟪old│new⟫, where ⟪old│⟫ deletes; to state whole lines instead, use a PUT body.
+*** SM:EDIT a.go
+*** SM:FIND
+const A = ⟪1│2⟫
+</anti-patterns>
+
+<critical>
+1. One anchor per action: an insert that belongs under text this payload writes goes into the *** SM:PUT body.
+2. Anchors are copied verbatim from the latest read and match the file as read — never text this payload writes.
+3. A failure applies nothing: rebuild the whole payload and resend it, never stack a follow-up edit on a rejected one.
+</critical>`
 
 // EditTool returns the edit (sloppy) tool definition + handler.
 func EditTool() tooldef.Tool {

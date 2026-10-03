@@ -258,6 +258,8 @@ func (p *parser) flush() error {
 				"*** SM:FIND body is never rewritten",
 				"this anchor has no *** SM:PUT, no *** SM:AFTER and no ⟪old│new⟫ selection",
 				"add *** SM:PUT <final text> (an empty body deletes the match) or *** SM:AFTER <lines to insert>; "+
+					"a body line that spells a recognized header is one, not content; "+
+					"use write for files that embed this syntax; "+
 					"an inline ⟪old│new⟫ selection needs no action header.")
 		}
 	}
@@ -315,7 +317,8 @@ func (p *parser) duplicateDiag(tok Token) error {
 	return p.diag(p.pendingOp(), tok.Line, 0, 0, codeDupAction,
 		"duplicate *** "+word+" header",
 		"the previous action is still open: no *** SM:FIND between the two",
-		"one *** SM:FIND takes one action — keep *** SM:PUT or *** SM:AFTER, not both.")
+		"give the second action its own *** SM:FIND, or fold its lines into the *** SM:PUT body: the body is the "+
+			"final text.")
 }
 
 // bodyDiag anchors a malformed FIND body at the payload span that broke it.
