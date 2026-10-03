@@ -1,165 +1,273 @@
 package sloppy
 
 import (
-	"errors"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func mustParse(t *testing.T, input string) []Section {
-	t.Helper()
-	sections, err := Parse(input)
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+func TestParse(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []Section
+	}{
+		{
+			name:  "basic replace",
+			input: "*** SM:EDIT a.ts\n*** SM:FIND\nconst timeout = 1000;\n*** SM:PUT\nconst timeout = 5000;\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					Pattern: Pattern{
+						Tokens: []PatternToken{
+							{Kind: PatternTokenLiteral, Text: "const timeout = 1000;", Start: 0, End: 21},
+						},
+						Body: "const timeout = 1000;",
+					},
+					Rewrite: Rewrite{Kind: RewriteReplace, Text: "const timeout = 5000;"},
+				}},
+			}},
+		},
+		{
+			name:  "empty put deletes",
+			input: "*** SM:EDIT a.ts\n*** SM:FIND\ndebugLog(request);\n*** SM:PUT\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					Pattern: Pattern{
+						Tokens: []PatternToken{
+							{Kind: PatternTokenLiteral, Text: "debugLog(request);", Start: 0, End: 18},
+						},
+						Body: "debugLog(request);",
+					},
+					Rewrite: Rewrite{Kind: RewriteReplace},
+				}},
+			}},
+		},
+		{
+			name:  "op inherits the edit all flag",
+			input: "*** SM:EDIT a.ts all\n*** SM:FIND\nlogger.debug(\n*** SM:PUT\nlogger.trace(\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					All:    true,
+					Pattern: Pattern{
+						Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "logger.debug(", Start: 0, End: 13}},
+						Body:   "logger.debug(",
+					},
+					Rewrite: Rewrite{Kind: RewriteReplace, Text: "logger.trace("},
+				}},
+			}},
+		},
+		{
+			name:  "bare edit header resets the all flag",
+			input: "*** SM:EDIT a.ts all\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:EDIT\n*** SM:FIND\nz\n*** SM:PUT\nw\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{
+					{
+						Number: 1,
+						Line:   2,
+						All:    true,
+						Pattern: Pattern{
+							Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "x", Start: 0, End: 1}},
+							Body:   "x",
+						},
+						Rewrite: Rewrite{Kind: RewriteReplace, Text: "y"},
+					},
+					{
+						Number: 2,
+						Line:   7,
+						Pattern: Pattern{
+							Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "z", Start: 0, End: 1}},
+							Body:   "z",
+						},
+						Rewrite: Rewrite{Kind: RewriteReplace, Text: "w"},
+					},
+				},
+			}},
+		},
+		{
+			name: "coalesces sections in first-seen order",
+			input: "*** SM:EDIT a.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n" +
+				"*** SM:EDIT b.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n" +
+				"*** SM:EDIT a.ts\n*** SM:FIND\nz\n*** SM:PUT\nw\n",
+			want: []Section{
+				{
+					Path: "a.ts",
+					Ops: []Operation{
+						{
+							Number: 1,
+							Line:   2,
+							Pattern: Pattern{
+								Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "x", Start: 0, End: 1}},
+								Body:   "x",
+							},
+							Rewrite: Rewrite{Kind: RewriteReplace, Text: "y"},
+						},
+						{
+							Number: 3,
+							Line:   12,
+							Pattern: Pattern{
+								Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "z", Start: 0, End: 1}},
+								Body:   "z",
+							},
+							Rewrite: Rewrite{Kind: RewriteReplace, Text: "w"},
+						},
+					},
+				},
+				{
+					Path: "b.ts",
+					Ops: []Operation{{
+						Number: 2,
+						Line:   7,
+						Pattern: Pattern{
+							Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "x", Start: 0, End: 1}},
+							Body:   "x",
+						},
+						Rewrite: Rewrite{Kind: RewriteReplace, Text: "y"},
+					}},
+				},
+			},
+		},
+		{
+			name:  "after inserts below the anchor",
+			input: "*** SM:EDIT src/retry.ts\n*** SM:FIND\n\tlimit: number;\n*** SM:AFTER\n\tdelayMs: number;\n",
+			want: []Section{{
+				Path: "src/retry.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					Pattern: Pattern{
+						Tokens: []PatternToken{
+							{Kind: PatternTokenLiteral, Text: "\tlimit: number;", Start: 0, End: 15},
+						},
+						Body: "\tlimit: number;",
+					},
+					Rewrite: Rewrite{Kind: RewriteInsert, Text: "\tdelayMs: number;"},
+				}},
+			}},
+		},
+		{
+			name:  "gap and selection tokens",
+			input: "*** SM:EDIT a.ts\n*** SM:FIND\ntimeout = …⟪1000│5000⟫…\nrun(timeout)\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					Pattern: Pattern{
+						Tokens: []PatternToken{
+							{Kind: PatternTokenLiteral, Text: "timeout = ", Start: 0, End: 10},
+							{Kind: PatternTokenGap, Capture: 0, LineBounded: true, Start: 10, End: 13},
+							{Kind: PatternTokenLiteral, Text: "1000", Start: 16, End: 20},
+							{Kind: PatternTokenGap, Capture: 1, Start: 30, End: 33},
+							{Kind: PatternTokenLiteral, Text: "\nrun(timeout)", Start: 33, End: 46},
+						},
+						Selections: []Selection{{Old: "1000", New: "5000", Start: 13, End: 30}},
+						Body:       "timeout = …⟪1000│5000⟫…\nrun(timeout)",
+					},
+					Rewrite: Rewrite{Kind: RewriteInline},
+				}},
+			}},
+		},
+		{
+			name: "drops read-output noise and line numbering",
+			input: "*** SM:EDIT a.ts\n*** SM:FIND\n" +
+				"1| const timeout = 1000;\n" +
+				"[Showing lines 1-3 of 3]\n" +
+				"2-3: …\n" +
+				"2| run(timeout);\n" +
+				"[2 more lines in a.ts. use read to continue]\n" +
+				"*** SM:PUT\n1| const timeout = 5000;\n2| run(timeout);\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					Pattern: Pattern{
+						Tokens: []PatternToken{{
+							Kind: PatternTokenLiteral,
+							Text: "const timeout = 1000;\nrun(timeout);",
+							End:  35,
+						}},
+						Body: "const timeout = 1000;\nrun(timeout);",
+					},
+					Rewrite: Rewrite{Kind: RewriteReplace, Text: "const timeout = 5000;\nrun(timeout);"},
+				}},
+			}},
+		},
+		{
+			name:  "anchor-less put asserts desired content",
+			input: "*** SM:EDIT a.ts\n*** SM:PUT\nfinal content\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number:  1,
+					Line:    2,
+					Desired: true,
+					Rewrite: Rewrite{Kind: RewriteReplace, Text: "final content"},
+				}},
+			}},
+		},
+		{
+			name:  "quoted path with all flag",
+			input: `*** SM:EDIT "my file all.ts" all` + "\n*** SM:FIND\nx\n*** SM:PUT\ny\n",
+			want: []Section{{
+				Path: "my file all.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					All:    true,
+					Pattern: Pattern{
+						Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "x", Start: 0, End: 1}},
+						Body:   "x",
+					},
+					Rewrite: Rewrite{Kind: RewriteReplace, Text: "y"},
+				}},
+			}},
+		},
+		{
+			name:  "strips an outer code fence",
+			input: "```text\n*** SM:EDIT a.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n```\n",
+			want: []Section{{
+				Path: "a.ts",
+				Ops: []Operation{{
+					Number: 1,
+					Line:   2,
+					Pattern: Pattern{
+						Tokens: []PatternToken{{Kind: PatternTokenLiteral, Text: "x", Start: 0, End: 1}},
+						Body:   "x",
+					},
+					Rewrite: Rewrite{Kind: RewriteReplace, Text: "y"},
+				}},
+			}},
+		},
 	}
-	return sections
-}
-
-func TestParseBasicReplace(t *testing.T) {
-	sections := mustParse(
-		t,
-		"*** SM:EDIT a.ts\n*** SM:FIND\nconst timeout = 1000;\n*** SM:PUT\nconst timeout = 5000;\n",
-	)
-	if len(sections) != 1 || sections[0].Path != "a.ts" || len(sections[0].Ops) != 1 {
-		t.Fatalf("sections = %+v, want one a.ts section with one op", sections)
-	}
-	op := sections[0].Ops[0]
-	if op.Number != 1 || op.Line != 2 || op.All || op.Desired {
-		t.Errorf("op header fields = %+v, want number 1 line 2", op)
-	}
-	if op.Rewrite != (Rewrite{Kind: RewriteReplace, Text: "const timeout = 5000;"}) {
-		t.Errorf("rewrite = %+v", op.Rewrite)
-	}
-	if op.Pattern.Body != "const timeout = 1000;" {
-		t.Errorf("pattern body = %q", op.Pattern.Body)
-	}
-	if len(op.Pattern.Tokens) != 1 || op.Pattern.Tokens[0].Kind != PatternTokenLiteral ||
-		op.Pattern.Tokens[0].Text != "const timeout = 1000;" {
-		t.Errorf("tokens = %+v", op.Pattern.Tokens)
-	}
-}
-
-func TestParseEmptyPutDeletes(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT a.ts\n*** SM:FIND\ndebugLog(request);\n*** SM:PUT\n")
-	op := sections[0].Ops[0]
-	if op.Rewrite.Kind != RewriteReplace || op.Rewrite.Text != "" {
-		t.Errorf("rewrite = %+v, want empty SM:PUT delete", op.Rewrite)
-	}
-}
-
-func TestParseAllFlag(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT a.ts all\n*** SM:FIND\nlogger.debug(\n*** SM:PUT\nlogger.trace(\n")
-	if !sections[0].Ops[0].All {
-		t.Error("op must inherit the SM:EDIT all flag")
-	}
-	sections = mustParse(
-		t,
-		"*** SM:EDIT a.ts all\n*** SM:FIND\nx\n*** SM:PUT\ny\n*** SM:EDIT\n*** SM:FIND\nz\n*** SM:PUT\nw\n",
-	)
-	ops := sections[0].Ops
-	if len(ops) != 2 {
-		t.Fatalf("ops = %+v, want two", ops)
-	}
-	if !ops[0].All || ops[1].All {
-		t.Errorf("all flags = %v, %v; want true, false after a bare SM:EDIT", ops[0].All, ops[1].All)
-	}
-}
-
-func TestParseCoalescesSectionsInFirstSeenOrder(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT a.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n"+
-		"*** SM:EDIT b.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n"+
-		"*** SM:EDIT a.ts\n*** SM:FIND\nz\n*** SM:PUT\nw\n")
-	if len(sections) != 2 || sections[0].Path != "a.ts" || sections[1].Path != "b.ts" {
-		t.Fatalf("sections = %+v, want a.ts then b.ts", sections)
-	}
-	if len(sections[0].Ops) != 2 || sections[0].Ops[1].Pattern.Body != "z" {
-		t.Errorf("a.ts ops = %+v, want both ops coalesced", sections[0].Ops)
-	}
-}
-
-func TestParseAfterInsert(t *testing.T) {
-	sections := mustParse(
-		t,
-		"*** SM:EDIT src/retry.ts\n*** SM:FIND\n\tlimit: number;\n*** SM:AFTER\n\tdelayMs: number;\n",
-	)
-	op := sections[0].Ops[0]
-	if op.Rewrite != (Rewrite{Kind: RewriteInsert, Text: "\tdelayMs: number;"}) {
-		t.Errorf("rewrite = %+v, want SM:AFTER insert", op.Rewrite)
-	}
-}
-
-func TestParseGapAndSelectionTokens(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT a.ts\n*** SM:FIND\ntimeout = …⟪1000│5000⟫…\nrun(timeout)\n")
-	op := sections[0].Ops[0]
-	if op.Rewrite.Kind != RewriteInline {
-		t.Fatalf("rewrite kind = %v, want inline selection", op.Rewrite.Kind)
-	}
-	body := "timeout = …⟪1000│5000⟫…\nrun(timeout)"
-	if op.Pattern.Body != body {
-		t.Fatalf("body = %q, want %q", op.Pattern.Body, body)
-	}
-	want := []PatternToken{
-		{Kind: PatternTokenLiteral, Text: "timeout = ", Start: 0, End: 10},
-		{Kind: PatternTokenGap, Capture: 0, LineBounded: true, Start: 10, End: 13},
-		{Kind: PatternTokenLiteral, Text: "1000", Start: 16, End: 20},
-		{Kind: PatternTokenGap, Capture: 1, Start: 30, End: 33},
-		{Kind: PatternTokenLiteral, Text: "\nrun(timeout)", Start: 33, End: 46},
-	}
-	if len(op.Pattern.Tokens) != len(want) {
-		t.Fatalf("tokens = %+v, want %+v", op.Pattern.Tokens, want)
-	}
-	for i := range want {
-		got := op.Pattern.Tokens[i]
-		if got != want[i] {
-			t.Errorf("token %d = %+v, want %+v", i, got, want[i])
-		}
-		if got.Kind == PatternTokenLiteral && got.Text != op.Pattern.Body[got.Start:got.End] {
-			t.Errorf("literal token %d text %q does not match body[%d:%d]", i, got.Text, got.Start, got.End)
-		}
-	}
-	wantSel := Selection{Old: "1000", New: "5000", Start: 13, End: 30}
-	if len(op.Pattern.Selections) != 1 || op.Pattern.Selections[0] != wantSel {
-		t.Errorf("selections = %+v, want %+v", op.Pattern.Selections, wantSel)
-	}
-}
-
-func TestParseDropsReadOutputNoiseAndNumbering(t *testing.T) {
-	input := "*** SM:EDIT a.ts\n*** SM:FIND\n" +
-		"1| const timeout = 1000;\n" +
-		"[Showing lines 1-3 of 3]\n" +
-		"2-3: …\n" +
-		"2| run(timeout);\n" +
-		"[2 more lines in a.ts. use read to continue]\n" +
-		"*** SM:PUT\n1| const timeout = 5000;\n2| run(timeout);\n"
-	sections := mustParse(t, input)
-	op := sections[0].Ops[0]
-	if op.Pattern.Body != "const timeout = 1000;\nrun(timeout);" {
-		t.Errorf("find body = %q", op.Pattern.Body)
-	}
-	if op.Rewrite.Text != "const timeout = 5000;\nrun(timeout);" {
-		t.Errorf("put body = %q", op.Rewrite.Text)
-	}
-}
-
-func TestParseDesiredOperation(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT a.ts\n*** SM:PUT\nfinal content\n")
-	op := sections[0].Ops[0]
-	if !op.Desired || op.Rewrite.Text != "final content" {
-		t.Errorf("op = %+v, want desired-state op", op)
-	}
-}
-
-func TestParseQuotedPath(t *testing.T) {
-	sections := mustParse(t, "*** SM:EDIT \"my file all.ts\" all\n*** SM:FIND\nx\n*** SM:PUT\ny\n")
-	if sections[0].Path != "my file all.ts" || !sections[0].Ops[0].All {
-		t.Errorf("section = %+v, want quoted path with all", sections[0])
-	}
-}
-
-func TestParseStripsOuterFence(t *testing.T) {
-	sections := mustParse(t, "```text\n*** SM:EDIT a.ts\n*** SM:FIND\nx\n*** SM:PUT\ny\n```\n")
-	if len(sections) != 1 || sections[0].Ops[0].Pattern.Body != "x" {
-		t.Errorf("sections = %+v, want fenced payload parsed", sections)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Parse(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			// A literal token must still be a verbatim slice of the cleaned body.
+			for _, section := range got {
+				for _, op := range section.Ops {
+					for i, tok := range op.Pattern.Tokens {
+						if tok.Kind == PatternTokenLiteral {
+							assert.Equal(t, tok.Text, op.Pattern.Body[tok.Start:tok.End],
+								"literal token %d does not match body[%d:%d]", i, tok.Start, tok.End)
+						}
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -221,17 +329,11 @@ func TestParseErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := Parse(tt.input)
 			var perr *ParseError
-			if !errors.As(err, &perr) {
-				t.Fatalf("error = %v (%T), want *ParseError", err, err)
-			}
-			if !strings.Contains(perr.Msg, tt.want) {
-				t.Errorf("message = %q, want substring %q", perr.Msg, tt.want)
-			}
-			if perr.Op != tt.op {
-				t.Errorf("op = %d, want %d", perr.Op, tt.op)
-			}
-			if tt.op > 0 && perr.Line == 0 {
-				t.Error("line must be set for operation errors")
+			require.ErrorAs(t, err, &perr)
+			assert.Contains(t, perr.Msg, tt.want)
+			assert.Equal(t, tt.op, perr.Op)
+			if tt.op > 0 {
+				assert.NotZero(t, perr.Line, "operation errors must carry a line number")
 			}
 		})
 	}

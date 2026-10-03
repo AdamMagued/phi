@@ -1,56 +1,62 @@
 package sloppy
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestScanPatternGapBoundedness(t *testing.T) {
-	p, err := scanPattern("a …b\n…\nc")
-	if err != nil {
-		t.Fatalf("scanPattern() error = %v", err)
+func TestScanPattern(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want Pattern
+	}{
+		{
+			name: "gaps are line-bounded only when text follows on their line",
+			body: "a …b\n…\nc",
+			want: Pattern{
+				Tokens: []PatternToken{
+					{Kind: PatternTokenLiteral, Text: "a ", Start: 0, End: 2},
+					{Kind: PatternTokenGap, Capture: 0, LineBounded: true, Start: 2, End: 5},
+					{Kind: PatternTokenLiteral, Text: "b\n", Start: 5, End: 7},
+					{Kind: PatternTokenGap, Capture: 1, Start: 7, End: 10},
+					{Kind: PatternTokenLiteral, Text: "\nc", Start: 10, End: 12},
+				},
+				Body: "a …b\n…\nc",
+			},
+		},
+		{
+			// Edge gaps take their joining newline with them.
+			name: "drops edge gaps",
+			body: "…\nfoo\n…",
+			want: Pattern{
+				Tokens:   []PatternToken{{Kind: PatternTokenLiteral, Text: "foo", Start: 4, End: 7}},
+				EdgeGaps: EdgeGaps{Leading: true, Trailing: true},
+				Body:     "…\nfoo\n…",
+			},
+		},
+		{
+			name: "renumbers captures after an edge drop",
+			body: "…a…b…",
+			want: Pattern{
+				Tokens: []PatternToken{
+					{Kind: PatternTokenLiteral, Text: "a", Start: 3, End: 4},
+					{Kind: PatternTokenGap, Capture: 0, LineBounded: true, Start: 4, End: 7},
+					{Kind: PatternTokenLiteral, Text: "b", Start: 7, End: 8},
+				},
+				EdgeGaps: EdgeGaps{Leading: true, Trailing: true},
+				Body:     "…a…b…",
+			},
+		},
 	}
-	var gaps []PatternToken
-	for _, tok := range p.Tokens {
-		if tok.Kind == PatternTokenGap {
-			gaps = append(gaps, tok)
-		}
-	}
-	if len(gaps) != 2 {
-		t.Fatalf("gaps = %+v, want two", gaps)
-	}
-	if !gaps[0].LineBounded {
-		t.Error("mid-line gap must be line-bounded")
-	}
-	if gaps[1].LineBounded {
-		t.Error("line-end gap may span lines")
-	}
-}
-
-func TestScanPatternDropsEdgeGaps(t *testing.T) {
-	p, err := scanPattern("…\nfoo\n…")
-	if err != nil {
-		t.Fatalf("scanPattern() error = %v", err)
-	}
-	if !p.EdgeGaps.Leading || !p.EdgeGaps.Trailing {
-		t.Errorf("edge gaps = %+v, want both", p.EdgeGaps)
-	}
-	want := PatternToken{Kind: PatternTokenLiteral, Text: "foo", Start: 4, End: 7}
-	if len(p.Tokens) != 1 || p.Tokens[0] != want {
-		t.Errorf("tokens = %+v, want %+v (edge gaps take their joining newline)", p.Tokens, want)
-	}
-}
-
-func TestScanPatternRenumbersAfterEdgeDrop(t *testing.T) {
-	p, err := scanPattern("…a…b…")
-	if err != nil {
-		t.Fatalf("scanPattern() error = %v", err)
-	}
-	if !p.EdgeGaps.Leading || !p.EdgeGaps.Trailing {
-		t.Fatalf("edge gaps = %+v, want both", p.EdgeGaps)
-	}
-	if len(p.Tokens) != 3 || p.Tokens[1].Kind != PatternTokenGap || p.Tokens[1].Capture != 0 {
-		t.Errorf("tokens = %+v, want the surviving gap numbered 0", p.Tokens)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := scanPattern(tt.body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }
 
@@ -69,12 +75,8 @@ func TestScanPatternSelectionErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := scanPattern(tt.body)
-			if err == nil {
-				t.Fatal("scanPattern() error = nil, want failure")
-			}
-			if got := err.Error(); !strings.Contains(got, tt.want) {
-				t.Errorf("error = %q, want substring %q", got, tt.want)
-			}
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tt.want)
 		})
 	}
 }

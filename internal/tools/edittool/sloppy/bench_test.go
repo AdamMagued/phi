@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // benchPayload builds a payload with ops anchored edits across files, mixing
@@ -32,9 +34,8 @@ func BenchmarkParse(b *testing.B) {
 	b.SetBytes(int64(len(payload)))
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if _, err := Parse(payload); err != nil {
-			b.Fatal(err)
-		}
+		_, err := Parse(payload)
+		require.NoError(b, err)
 	}
 }
 
