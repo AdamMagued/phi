@@ -93,7 +93,9 @@ func scanSelection(body string, i int) (PatternToken, Selection, int, error) {
 			fmt.Errorf("selection misses the %q divider: use %sold%snew%s", selDivider, selOpen, selDivider, selClose)
 	}
 	if strings.Contains(text[divAt+len(selDivider):], selDivider) {
-		return PatternToken{}, Selection{}, 0, fmt.Errorf("selection has multiple %q dividers", selDivider)
+		return PatternToken{}, Selection{}, 0, fmt.Errorf(
+			"selection has multiple %q dividers: keep one divider per selection, and state lines with a literal %s using a *** SM:PUT block instead",
+			selDivider, selDivider)
 	}
 	oldStart := i + len(selOpen)
 	oldEnd := oldStart + divAt

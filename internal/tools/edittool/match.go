@@ -10,13 +10,13 @@ import (
 	"github.com/pulseaiclub/phi/internal/tools/edittool/sloppy"
 )
 
-// Pattern markers. A gap elides file text and captures it; a selection rewrites
-// the text it wraps.
+// Pattern markers the matching layer still sees. The "│" divider is not among
+// them: sloppy scanSelection consumes it while splitting selections, so a
+// compiled pattern only carries the already-separated old and new text.
 const (
-	gapMarker  = "…"
-	selOpen    = "⟪"
-	selClose   = "⟫"
-	selDivider = "│"
+	gapMarker = "…"
+	selOpen   = "⟪"
+	selClose  = "⟫"
 )
 
 // Matching limits mirrored from the reference engine: the search gives up
