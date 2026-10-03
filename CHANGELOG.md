@@ -14,6 +14,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Hashline `edit` description now matches mismatch behavior: retry a `LINE#HASH`
   mismatch with the error's updated references; re-read on a file TAG mismatch.
+- Renamed `/clear` slash command to `/new`. It starts a fresh session (new
+  id, empty transcript) and leaves the previous one resumable via
+  `/sessions`; the old name implied wiping the current conversation.
 
 ### Deprecated
 

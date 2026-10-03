@@ -225,7 +225,7 @@ syntax highlighting. Structural markers (`#`, `` ` ``, `*`) are stripped.
 The editor supports:
 
 - `@` — fuzzy file mention picker (type `@` and start typing a path)
-- `/` — slash command picker (`/sessions`, `/branch`, `/clear`, `/diff`, `/code`)
+- `/` — slash command picker (`/sessions`, `/branch`, `/new`, `/diff`, `/code`)
 - `?` — shortcut help picker (lists `/`, `!`, `@`, and key bindings; `Esc` closes)
 - `!command` — run a shell command locally and stream its output into the
   transcript (see [Commands](#commands))
@@ -305,7 +305,7 @@ unfinished.
 | `phi sessions list`| List persisted sessions for this directory    |
 | `/sessions`        | List sessions for this directory (TUI)        |
 | `/branch`          | Switch the working branch — see [Branch switching](#branch-switching) |
-| `/clear`           | Start a fresh empty session (TUI)             |
+| `/new`             | Start a fresh empty session (TUI)             |
 | `/diff`            | Full-screen git review — see [Diff review](#diff-review) |
 | `/code`            | Full-screen source viewer — see [Code viewer](#code-viewer) |
 | `!command`         | Run a shell command locally, stream output into the transcript; `Esc` cancels it |
@@ -322,7 +322,7 @@ Sessions persist automatically per working directory under
 - `phi sessions list` — list session id, mtime, and preview for the current
   directory
 - `/sessions` in the TUI — same, in-app
-- `/clear` — start a fresh session (new id, empty transcript)
+- `/new` — start a fresh session (new id, empty transcript)
 - `phi run --session <id>` / `phi run --continue-last` — resume headlessly
 
 ## Headless mode
