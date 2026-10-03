@@ -12,7 +12,7 @@
   <a href="https://github.com/pulseaiclub/phi/releases"><img src="https://img.shields.io/github/v/release/pulseaiclub/phi?style=flat&colorA=222222&colorB=8957E5" alt="Release"></a>
 </p>
 
-- 15 MB · ~31 ms  · sub-agents · hashline edits · permission gate · progressive MCP · PXB extensions · native diff review & code selection · OpenAI / Anthropic / Gemini
+- 15 MB · ~31 ms  · sub-agents · anchored sloppy edits · permission gate · progressive MCP · PXB extensions · native diff review & code selection · OpenAI / Anthropic / Gemini
 
 ![phi welcome](assets/phi.png)
 

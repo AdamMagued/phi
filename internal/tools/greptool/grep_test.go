@@ -27,9 +27,9 @@ func TestRunGrep_CwdRelativeHeaders(t *testing.T) {
 		t.Skip(err.Error())
 	}
 	require.NoError(t, err)
-	assert.Contains(t, out.Content, "@file src/main.go#")
+	assert.Contains(t, out.Content, "@file src/main.go\n")
 	assert.Contains(t, out.Content, "src/main.go:>>")
-	assert.NotContains(t, out.Content, "@file main.go#")
+	assert.NotContains(t, out.Content, "@file main.go\n")
 }
 
 func TestRunGrep_DefaultPathUsesCwdRelative(t *testing.T) {
@@ -44,7 +44,7 @@ func TestRunGrep_DefaultPathUsesCwdRelative(t *testing.T) {
 		t.Skip(err.Error())
 	}
 	require.NoError(t, err)
-	assert.Contains(t, out.Content, "@file src/main.go#")
+	assert.Contains(t, out.Content, "@file src/main.go\n")
 }
 
 // A matched line bigger than the read cap used to end the scan while ripgrep was

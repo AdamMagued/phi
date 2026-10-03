@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -41,9 +42,9 @@ const (
 var errOversizedEvent = errors.New("ripgrep event exceeds size cap")
 
 var grepDescription = fmt.Sprintf(
-	`Search file contents by regex or literal text and return matching lines as LINE#HASH anchors.
+	`Search file contents by regex or literal text and return matching lines with file and line numbers.
 
-Each matched file is preceded by an @file path#TAG header (4 hex chars for edit.hash).
+Each matched file is preceded by an @file path header.
 Use the glob parameter to limit files (e.g. *_test.go); that is not the find tool.
 Results are capped at %d matches and %dKB; increase limit or refine the pattern if truncated.
 Use read for full untruncated line text. Prefer this over bash grep/rg.`,
@@ -297,7 +298,6 @@ func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 
 	// Read matched files to produce output.
 	fileCache := make(map[string][]string)
-	fileTag := make(map[string]string)
 	getFileLines := func(abs string) []string {
 		if cached, ok := fileCache[abs]; ok {
 			return cached
@@ -310,7 +310,6 @@ func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 		text := util.NormalizeLF(string(b))
 		lines := strings.Split(text, "\n")
 		fileCache[abs] = lines
-		fileTag[abs] = util.ComputeFileHash(text)
 		return lines
 	}
 
@@ -325,9 +324,7 @@ func runGrep(ctx context.Context, in grepInput) (tooldef.Result, error) {
 		if m.filePath != lastAbs {
 			lastAbs = m.filePath
 			_ = getFileLines(m.filePath)
-			if tag, ok := fileTag[m.filePath]; ok && tag != "" {
-				out = append(out, util.FormatFileHeader(formatPath(m.filePath), tag))
-			}
+			out = append(out, "@file "+formatPath(m.filePath))
 		}
 		block, lt := formatGrepBlock(formatPath, getFileLines, m.filePath, m.lineNumber, contextN)
 		if lt {
@@ -454,8 +451,7 @@ func formatGrepBlock(
 			lineText = fileLines[cur-1]
 		}
 		lineText = util.ReplaceAll(lineText, "\r", "")
-		h := util.ComputeLineHash(lineText)
-		ref := fmt.Sprintf("%d#%s", cur, h)
+		ref := strconv.Itoa(cur)
 		truncLine, wasTrunc := truncateLine(lineText, grepMaxLineRunes)
 		if wasTrunc {
 			anyLineTruncated = true

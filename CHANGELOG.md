@@ -12,8 +12,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Hashline `edit` description now matches mismatch behavior: retry a `LINE#HASH`
-  mismatch with the error's updated references; re-read on a file TAG mismatch.
+- `edit` now takes a sloppy anchored payload (`*** SM:EDIT` / `*** SM:FIND` /
+  `*** SM:PUT`|`*** SM:AFTER`) with whitespace-tolerant matching, atomic
+  multi-file apply, and copy-ready failure payloads. It replaces hashline
+  range edits.
+- `read`/`grep` drop hashline chrome: `@file path` headers and `N|content`
+  lines replace `path#TAG` and `N#hash|content`.
+- `edit` syntax errors now report like a compiler: `error[SM103]` with the
+  payload line and column, the failing line with a caret under the offending
+  span, and one `help:` line with the fix. Misspelled headers, stray selection
+  markers, and empty file sections are diagnosed instead of silently read as
+  file content.
+- `edit` teaches its own failure modes: the description gains an
+  `<anti-patterns>` block (a second action with no `FIND` of its own under a
+  used-up `PUT`, a body line that spells a header, a selection missing its
+  divider) and a `<critical>` recap, and the diagnostics those shapes hit now
+  name the repair instead of the mistake. `edit_test.go` runs both blocks
+  through the parser, so the description cannot advertise a payload the engine
+  rejects.
 - Renamed `/clear` slash command to `/new`. It starts a fresh session (new
   id, empty transcript) and leaves the previous one resumable via
   `/sessions`; the old name implied wiping the current conversation.
@@ -21,6 +37,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Deprecated
 
 ### Removed
+
+- Hashline `edit` (file TAG + `LINE#HASH` range edits) and the line/file hash
+  helpers behind it.
 
 ### Fixed
 
