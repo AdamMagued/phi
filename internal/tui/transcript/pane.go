@@ -210,7 +210,7 @@ func (t *TranscriptPane) LoadReplay(snap session.Snapshot) {
 	t.list.InvalidateHeights()
 }
 
-// ResetSubagents clears nested job UI state (e.g. after /clear).
+// ResetSubagents clears nested job UI state (e.g. after /new).
 func (t *TranscriptPane) ResetSubagents() {
 	if t == nil {
 		return

@@ -18,6 +18,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   range edits.
 - `read`/`grep` drop hashline chrome: `@file path` headers and `N|content`
   lines replace `path#TAG` and `N#hash|content`.
+- Renamed `/clear` slash command to `/new`. It starts a fresh session (new
+  id, empty transcript) and leaves the previous one resumable via
+  `/sessions`; the old name implied wiping the current conversation.
 
 ### Deprecated
 
