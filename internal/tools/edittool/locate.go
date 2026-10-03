@@ -396,6 +396,9 @@ func closestFragment(content, pattern string) (string, int, float64) {
 	if len(pattern) <= 160 {
 		for _, line := range ranked {
 			width := min(len(pattern), len(line.norm))
+			if width == 0 {
+				continue
+			}
 			for start := 0; start+width <= len(line.norm); start++ {
 				if !isCharBoundary(line.norm, start) || !isCharBoundary(line.norm, start+width) {
 					continue
@@ -409,6 +412,9 @@ func closestFragment(content, pattern string) (string, int, float64) {
 				lineNorm := normalizeText(line.text)
 				rawStart := lineNorm.sourceStart(start, 0)
 				rawEnd := lineNorm.sourceEnd(start+width, len(line.text))
+				if rawStart > rawEnd {
+					continue
+				}
 				best = rankedLine{
 					text:   line.text[rawStart:rawEnd],
 					offset: line.offset + rawStart,

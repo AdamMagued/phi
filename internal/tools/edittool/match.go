@@ -176,6 +176,9 @@ func compilePattern(pat sloppy.Pattern, number int) (*compiledPattern, error) {
 			c.tokens = append(c.tokens, patToken{kind: tokGap, lineBounded: tok.LineBounded})
 			continue
 		}
+		if tok.Text == "" {
+			continue // an edge gap ate this literal's joining newline; the neighbors abut
+		}
 		c.tokens = append(c.tokens, patToken{
 			kind: tokLiteral, text: tok.Text, norm: normalizeText(tok.Text).text,
 		})
