@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -798,112 +797,120 @@ func (p *Pane) searchStatus() string {
 	return fmt.Sprintf("%s  %d/%d", out, p.matchIdx+1, len(p.matches))
 }
 
+func bracketPair(r rune) (matching rune, isOpen, ok bool) {
+	switch r {
+	case '(':
+		return ')', true, true
+	case '{':
+		return '}', true, true
+	case '[':
+		return ']', true, true
+	case ')':
+		return '(', false, true
+	case '}':
+		return '{', false, true
+	case ']':
+		return '[', false, true
+	default:
+		return 0, false, false
+	}
+}
+
+func findTargetBracket(lineText string, col int) (bracket rune, colIdx int, found bool) {
+	if col >= 0 && col < len(lineText) {
+		r, _ := utf8.DecodeRuneInString(lineText[col:])
+		if _, _, ok := bracketPair(r); ok {
+			return r, col, true
+		}
+	}
+	for i, r := range lineText {
+		if i >= col {
+			if _, _, ok := bracketPair(r); ok {
+				return r, i, true
+			}
+		}
+	}
+	for i, r := range lineText {
+		if _, _, ok := bracketPair(r); ok {
+			return r, i, true
+		}
+	}
+	return 0, 0, false
+}
+
+func searchBracketForward(lines []string, startLine, startCol int, openRune, closeRune rune) (int, int, bool) {
+	depth := 0
+	for l := startLine; l < len(lines); l++ {
+		txt := lines[l]
+		col := 0
+		if l == startLine {
+			col = startCol
+		}
+		for col < len(txt) {
+			r, size := utf8.DecodeRuneInString(txt[col:])
+			switch r {
+			case openRune:
+				depth++
+			case closeRune:
+				depth--
+				if depth == 0 {
+					return l, col, true
+				}
+			}
+			col += size
+		}
+	}
+	return 0, 0, false
+}
+
+func searchBracketBackward(lines []string, startLine, startCol int, closeRune, openRune rune) (int, int, bool) {
+	depth := 0
+	for l := startLine; l >= 0; l-- {
+		txt := lines[l]
+		col := len(txt)
+		if l == startLine {
+			col = min(startCol+utf8.RuneLen(closeRune), len(txt))
+		}
+		for col > 0 {
+			r, size := utf8.DecodeLastRuneInString(txt[:col])
+			col -= size
+			switch r {
+			case closeRune:
+				depth++
+			case openRune:
+				depth--
+				if depth == 0 {
+					return l, col, true
+				}
+			}
+		}
+	}
+	return 0, 0, false
+}
 
 func (p *Pane) jumpMatchingBracket() {
 	if len(p.lines) == 0 || p.line >= len(p.lines) {
 		return
 	}
-	lineText := p.lineText()
-	openBrackets := "({["
-	pairs := map[rune]rune{
-		'(': ')',
-		'{': '}',
-		'[': ']',
-		')': '(',
-		'}': '{',
-		']': '[',
-	}
-
-	targetRune := rune(0)
-	targetCol := p.col
-	if p.col < len(lineText) {
-		r, _ := utf8.DecodeRuneInString(lineText[p.col:])
-		if _, ok := pairs[r]; ok {
-			targetRune = r
-		}
-	}
-	if targetRune == 0 {
-		for i, r := range lineText {
-			if i >= p.col {
-				if _, ok := pairs[r]; ok {
-					targetRune = r
-					targetCol = i
-					break
-				}
-			}
-		}
-	}
-	if targetRune == 0 {
-		for i, r := range lineText {
-			if _, ok := pairs[r]; ok {
-				targetRune = r
-				targetCol = i
-				break
-			}
-		}
-	}
-	if targetRune == 0 {
+	targetRune, targetCol, found := findTargetBracket(p.lineText(), p.col)
+	if !found {
 		return
 	}
 
-	matchRune := pairs[targetRune]
-	isOpen := strings.ContainsRune(openBrackets, targetRune)
-
-	depth := 0
+	matchRune, isOpen, _ := bracketPair(targetRune)
+	var (
+		destLine int
+		destCol  int
+		ok       bool
+	)
 	if isOpen {
-		for l := p.line; l < len(p.lines); l++ {
-			txt := p.lines[l]
-			startCol := 0
-			if l == p.line {
-				startCol = targetCol
-			}
-			for col := startCol; col < len(txt); {
-				r, size := utf8.DecodeRuneInString(txt[col:])
-				switch r {
-				case targetRune:
-					depth++
-				case matchRune:
-					depth--
-					if depth == 0 {
-						p.line = l
-						p.col = col
-						return
-					}
-				}
-				col += size
-			}
-		}
+		destLine, destCol, ok = searchBracketForward(p.lines, p.line, targetCol, targetRune, matchRune)
 	} else {
-		for l := p.line; l >= 0; l-- {
-			txt := p.lines[l]
-			endCol := len(txt)
-			if l == p.line {
-				endCol = targetCol + 1
-			}
-			type colRune struct {
-				col int
-				r   rune
-			}
-			var runes []colRune
-			for col := 0; col < endCol; {
-				r, size := utf8.DecodeRuneInString(txt[col:])
-				runes = append(runes, colRune{col: col, r: r})
-				col += size
-			}
-			for _, cr := range slices.Backward(runes) {
-				switch cr.r {
-				case targetRune:
-					depth++
-				case matchRune:
-					depth--
-					if depth == 0 {
-						p.line = l
-						p.col = cr.col
-						return
-					}
-				}
-			}
-		}
+		destLine, destCol, ok = searchBracketBackward(p.lines, p.line, targetCol, targetRune, matchRune)
+	}
+	if ok {
+		p.line = destLine
+		p.col = destCol
 	}
 }
 
@@ -925,4 +932,3 @@ func (p *Pane) selectParagraph() {
 	p.clamp()
 	p.reveal()
 }
-

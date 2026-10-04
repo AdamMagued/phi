@@ -464,3 +464,126 @@ func TestGotoLine(t *testing.T) {
 	assert.Equal(t, 24, lo)
 	assert.Equal(t, 29, hi)
 }
+
+func TestBracketPair(t *testing.T) {
+	tests := []struct {
+		input  rune
+		match  rune
+		isOpen bool
+		ok     bool
+	}{
+		{'(', ')', true, true},
+		{'{', '}', true, true},
+		{'[', ']', true, true},
+		{')', '(', false, true},
+		{'}', '{', false, true},
+		{']', '[', false, true},
+		{'a', 0, false, false},
+		{' ', 0, false, false},
+		{'\n', 0, false, false},
+	}
+	for _, tc := range tests {
+		match, isOpen, ok := bracketPair(tc.input)
+		assert.Equal(t, tc.ok, ok, "ok for %q", tc.input)
+		assert.Equal(t, tc.match, match, "match for %q", tc.input)
+		assert.Equal(t, tc.isOpen, isOpen, "isOpen for %q", tc.input)
+	}
+}
+
+func TestFindTargetBracket(t *testing.T) {
+	// Directly on bracket
+	b, col, ok := findTargetBracket("foo(bar)", 3)
+	assert.True(t, ok)
+	assert.Equal(t, '(', b)
+	assert.Equal(t, 3, col)
+
+	// Before bracket on line
+	b, col, ok = findTargetBracket("foo(bar)", 0)
+	assert.True(t, ok)
+	assert.Equal(t, '(', b)
+	assert.Equal(t, 3, col)
+
+	// Past all brackets, wraps/falls back to first bracket on line
+	b, col, ok = findTargetBracket("foo(bar)", 8)
+	assert.True(t, ok)
+	assert.Equal(t, '(', b)
+	assert.Equal(t, 3, col)
+
+	// No brackets on line
+	_, _, ok = findTargetBracket("no brackets here", 0)
+	assert.False(t, ok)
+}
+
+func TestSearchBracketForwardAndBackward(t *testing.T) {
+	lines := []string{
+		"func example() {",
+		"\tif (a + b) > 0 {",
+		"\t\treturn [1]int{42}",
+		"\t}",
+		"}",
+	}
+
+	// Forward match for outer '{' at line 0, col 15
+	l, c, ok := searchBracketForward(lines, 0, 15, '{', '}')
+	assert.True(t, ok)
+	assert.Equal(t, 4, l)
+	assert.Equal(t, 0, c)
+
+	// Backward match for outer '}' at line 4, col 0
+	l, c, ok = searchBracketBackward(lines, 4, 0, '}', '{')
+	assert.True(t, ok)
+	assert.Equal(t, 0, l)
+	assert.Equal(t, 15, c)
+
+	// Forward match for inner '(' at line 1, col 4
+	l, c, ok = searchBracketForward(lines, 1, 4, '(', ')')
+	assert.True(t, ok)
+	assert.Equal(t, 1, l)
+	assert.Equal(t, 10, c)
+
+	// Backward match for inner ')' at line 1, col 10
+	l, c, ok = searchBracketBackward(lines, 1, 10, ')', '(')
+	assert.True(t, ok)
+	assert.Equal(t, 1, l)
+	assert.Equal(t, 4, c)
+
+	// Unmatched bracket forward
+	_, _, ok = searchBracketForward([]string{"(unclosed"}, 0, 0, '(', ')')
+	assert.False(t, ok)
+
+	// Unmatched bracket backward
+	_, _, ok = searchBracketBackward([]string{"unopened)"}, 0, 8, ')', '(')
+	assert.False(t, ok)
+}
+
+func TestMatchingBracketJumpEdgeCases(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"a.go": "var items = [3]int{1, 2, 3}\n// no brackets\nfunc unclosed() (\n",
+	})
+	h.pane.Open("a.go")
+
+	// Jump on square brackets
+	h.pane.line = 0
+	h.pane.col = 12 // on '['
+	h.key(t, '%')
+	assert.Equal(t, 0, h.pane.line)
+	assert.Equal(t, 14, h.pane.col) // on ']'
+
+	h.key(t, '%')
+	assert.Equal(t, 0, h.pane.line)
+	assert.Equal(t, 12, h.pane.col) // back to '['
+
+	// Jump on line with no brackets leaves cursor unchanged
+	h.pane.line = 1
+	h.pane.col = 5
+	h.key(t, '%')
+	assert.Equal(t, 1, h.pane.line)
+	assert.Equal(t, 5, h.pane.col)
+
+	// Jump with unmatched bracket leaves cursor unchanged
+	h.pane.line = 2
+	h.pane.col = 16 // on '('
+	h.key(t, '%')
+	assert.Equal(t, 2, h.pane.line)
+	assert.Equal(t, 16, h.pane.col)
+}
