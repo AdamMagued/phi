@@ -71,7 +71,9 @@ jobs:
         run: |
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
             echo "error: secrets.NPM_TOKEN is not set" >&2
-            echo "       create an npm automation token for @pulseaiclub and add it as a repository secret" >&2
+            echo "       create an npm automation token for the pulseaiclub account" >&2
+            echo "       (granular or classic automation, read-write) and add it" >&2
+            echo "       as the repository secret NPM_TOKEN" >&2
             exit 1
           fi
           npm install --no-audit --no-fund
