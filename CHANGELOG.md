@@ -30,6 +30,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `phi config`: the footer hints now name `d delete`, which deleted a model or
   a bash rule without ever being advertised. The line also drops whole hints
   when the terminal is too narrow instead of cutting the last one mid-word.
+- TUI: the context-fill label follows `/model` switches. The window came from
+  the startup model and never changed, so a 1M-token model kept reporting fill
+  against the default model's window (e.g. 192k).
 
 ### Security
 
