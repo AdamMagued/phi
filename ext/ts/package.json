@@ -3,8 +3,15 @@
   "version": "0.6.1",
   "description": "TypeScript author SDK for Phi PXB extensions (port of ext/rust)",
   "license": "MIT",
-  "repository": "github:pulseaiclub/phi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pulseaiclub/phi.git",
+    "directory": "ext/ts"
+  },
   "keywords": ["phi", "coding-agent", "extension", "pxb"],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -24,7 +31,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.ts",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "prepublishOnly": "npm run check && npm run build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

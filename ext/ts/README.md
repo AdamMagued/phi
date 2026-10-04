@@ -23,11 +23,16 @@ against `ext/go/pxb/testdata/*.bin` (`test/golden.test.ts`).
 
 ## Authoring
 
-Install from the repo (pre-release; a published npm package will follow the
-`ext/ts/vX.Y.Z` tag convention):
+Until the package is published, vendor `ext/ts` into your project or install
+a tarball (`npm pack` in `ext/ts`, then `npm install
+pulseaiclub-phi-ext-0.6.1.tgz`) — npm has no subdirectory git deps, so a
+monorepo URL alone won't resolve.
+
+Published releases come from `ext/ts/v*` tags (`@pulseaiclub/phi-ext`,
+versioned in `package.json`, same split as the Rust crate's `ext/rust/v*`):
 
 ```bash
-npm install github:pulseaiclub/phi --workspaces=false   # or a path/git dep on ext/ts
+npm install @pulseaiclub/phi-ext
 ```
 
 ```ts
