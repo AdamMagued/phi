@@ -431,6 +431,12 @@ func (c *EngineController) ModelName() string {
 	return c.modelCfg.Name
 }
 
+// ContextWindow returns the active model's context window in tokens, so the
+// UI can re-render context pressure after a model switch.
+func (c *EngineController) ContextWindow() int {
+	return c.modelCfg.ContextWindow
+}
+
 func (c *EngineController) ImageEnabled() bool {
 	return c.modelCfg.ImageEnabled
 }
