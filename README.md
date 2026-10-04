@@ -409,8 +409,9 @@ palette's settings → permissions entry toggles session-wide bypass.
 ## Extensions
 
 Extensions are native binaries speaking the **PXB** binary protocol over
-stdin/stdout (author SDKs: Go `github.com/pulseaiclub/phi/ext/go/phi` and Rust
-[`ext/rust`](ext/rust), `phi-ext`). They
+stdin/stdout (author SDKs: Go `github.com/pulseaiclub/phi/ext/go/phi`, Rust
+[`ext/rust`](ext/rust) (`phi-ext`), and TypeScript
+[`ext/ts`](ext/ts) (`@pulseaiclub/phi-ext`)). They
 subscribe to tool/session events, register LLM tools, and add slash commands.
 
 ```bash
