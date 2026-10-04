@@ -10,6 +10,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- TypeScript extension SDK under `ext/ts` (`@pulseaiclub/phi-ext`): the same
+  PXB wire protocol and author surface as `ext/go` / `ext/rust` — LLM tools
+  (sync or async), slash commands, intercepts, event subscriptions, confirm
+  dialogs, queued submits — with zero runtime dependencies. Byte-level
+  compatibility is pinned by golden tests against `ext/go/pxb/testdata`; a
+  fake-host suite drives the `examples/` end to end. Extensions ship as a
+  `phi.yaml` pointing at `node` (sources run on Node ≥ 23.6, `dist/` builds
+  on Node ≥ 20).
+
 ### Changed
 
 ### Deprecated
