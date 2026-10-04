@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -210,7 +211,7 @@ func (p *Pane) handleGotoKey(ctx *components.EventContext, e xui.KeyEvent) {
 		}
 		p.gotoBuf = ""
 	case xui.KeyBackspace:
-		if len(p.gotoBuf) > 0 {
+		if p.gotoBuf != "" {
 			p.gotoBuf = p.gotoBuf[:len(p.gotoBuf)-1]
 		}
 	case xui.KeyRune:
@@ -944,9 +945,10 @@ func (p *Pane) jumpMatchingBracket() {
 			}
 			for col := startCol; col < len(txt); {
 				r, size := utf8.DecodeRuneInString(txt[col:])
-				if r == targetRune {
+				switch r {
+				case targetRune:
 					depth++
-				} else if r == matchRune {
+				case matchRune:
 					depth--
 					if depth == 0 {
 						p.line = l
@@ -974,11 +976,11 @@ func (p *Pane) jumpMatchingBracket() {
 				runes = append(runes, colRune{col: col, r: r})
 				col += size
 			}
-			for i := len(runes) - 1; i >= 0; i-- {
-				cr := runes[i]
-				if cr.r == targetRune {
+			for _, cr := range slices.Backward(runes) {
+				switch cr.r {
+				case targetRune:
 					depth++
-				} else if cr.r == matchRune {
+				case matchRune:
 					depth--
 					if depth == 0 {
 						p.line = l
@@ -1227,7 +1229,7 @@ func (p *Pane) selectWordUnderCursor() {
 		return
 	}
 	txt := p.lineText()
-	if len(txt) == 0 {
+	if txt == "" {
 		return
 	}
 	col := clampCol(txt, p.col)
@@ -1243,7 +1245,6 @@ func (p *Pane) selectWordUnderCursor() {
 			r2, s2 := utf8.DecodeRuneInString(txt[c:])
 			if isWordChar(r2) {
 				col = c
-				r = r2
 				size = s2
 				inWord = true
 				found = true
