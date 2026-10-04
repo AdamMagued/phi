@@ -1,6 +1,6 @@
 {
   "name": "@pulseaiclub/phi-ext",
-  "version": "0.6.1",
+  "version": "0.1.0",
   "description": "TypeScript author SDK for Phi PXB extensions (port of ext/rust)",
   "license": "MIT",
   "repository": {
@@ -8,7 +8,12 @@
     "url": "git+https://github.com/pulseaiclub/phi.git",
     "directory": "ext/ts"
   },
-  "keywords": ["phi", "coding-agent", "extension", "pxb"],
+  "keywords": [
+    "phi",
+    "coding-agent",
+    "extension",
+    "pxb"
+  ],
   "publishConfig": {
     "access": "public"
   },

@@ -25,11 +25,12 @@ against `ext/go/pxb/testdata/*.bin` (`test/golden.test.ts`).
 
 Until the package is published, vendor `ext/ts` into your project or install
 a tarball (`npm pack` in `ext/ts`, then `npm install
-pulseaiclub-phi-ext-0.6.1.tgz`) — npm has no subdirectory git deps, so a
+pulseaiclub-phi-ext-0.1.0.tgz`) — npm has no subdirectory git deps, so a
 monorepo URL alone won't resolve.
 
-Published releases come from `ext/ts/v*` tags (`@pulseaiclub/phi-ext`,
-versioned in `package.json`, same split as the Rust crate's `ext/rust/v*`):
+Published releases come from `ext/ts/v*` tags (`@pulseaiclub/phi-ext`).
+The package versions on its own line — `0.1.0` is its first release,
+independent of the Rust crate's `ext/rust/v*` series:
 
 ```bash
 npm install @pulseaiclub/phi-ext
