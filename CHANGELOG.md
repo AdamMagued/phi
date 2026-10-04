@@ -27,6 +27,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `phi config`: the footer hints now name `d delete`, which deleted a model or
+  a bash rule without ever being advertised. The line also drops whole hints
+  when the terminal is too narrow instead of cutting the last one mid-word.
+
 ### Security
 
 ## [0.28.2] - 2026-10-04
