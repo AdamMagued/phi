@@ -33,6 +33,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - TUI: the context-fill label follows `/model` switches. The window came from
   the startup model and never changed, so a 1M-token model kept reporting fill
   against the default model's window (e.g. 192k).
+- TUI transcript: a press on a tool / thinking / bash / agent title row expanded
+  the block instead of starting a selection — the block toggled on the press
+  itself and consumed it, so a drag that began on a title row copied nothing.
+  Blocks now toggle on a click (release without movement) that the transcript
+  pane reports once it knows no drag-selection happened.
+- TUI transcript: a selection across a title row no longer pastes the `▶` / `▼`
+  disclosure glyph — selection copy drops transcript chrome.
 
 ### Security
 

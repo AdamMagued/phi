@@ -375,6 +375,15 @@ func (t *TranscriptPane) HandleMouse(ctx *components.EventContext, e xui.MouseEv
 			ctx.ConsumeAndRedraw()
 			return
 		}
+		// A press that never moved is a click. Disclosure toggles live here
+		// because this is the only place that knows the press did not become a
+		// drag-selection — a block that decided for itself would expand instead
+		// of letting a selection start on its title row.
+		if w, lx, ly := t.lastListSurf.HitTestAt(e.X, e.Y); w != nil {
+			if toggler, ok := w.(components.ClickToggler); ok {
+				toggler.ClickAt(lx, ly)
+			}
+		}
 		idx := t.list.IndexAtPoint(e.X, e.Y)
 		if idx >= 0 {
 			t.list.Selected = idx
