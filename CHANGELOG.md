@@ -12,6 +12,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.28.2] - 2026-10-04
+
+### Added
+
+### Changed
+
 - `edit` now takes a sloppy anchored payload (`*** SM:EDIT` / `*** SM:FIND` /
   `*** SM:PUT`|`*** SM:AFTER`) with whitespace-tolerant matching, atomic
   multi-file apply, and copy-ready failure payloads. It replaces hashline
@@ -860,7 +874,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.1...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.2...HEAD
+[0.28.2]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.2
 [0.28.1]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.1
 [0.28.0]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.0
 [0.27.6]: https://github.com/pulseaiclub/phi/releases/tag/v0.27.6
