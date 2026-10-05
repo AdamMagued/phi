@@ -386,6 +386,21 @@ func TestSearchModeAndNextPrev(t *testing.T) {
 	assert.Equal(t, 2, hi)
 }
 
+func TestSearchScansOneLowercaseCopy(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "Alpha One\nbeta two\n"})
+	h.pane.Open("a.go")
+	assert.Nil(t, h.pane.lowered, "no lowercase copy before the first search")
+
+	h.key(t, '/')
+	h.key(t, 'a')
+	require.Len(t, h.pane.lowered, len(h.pane.lines))
+	assert.Equal(t, "alpha one", h.pane.lowered[0])
+
+	// Reopening drops the copy: it belongs to the lines it was built from.
+	h.pane.Open("a.go")
+	assert.Nil(t, h.pane.lowered)
+}
+
 func TestSelectParagraph(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		"a.go": "line 1\nline 2\n\nline 3\n",
