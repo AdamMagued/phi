@@ -69,6 +69,16 @@ type Pane struct {
 	// (line) is the moving end, so plain movement extends it.
 	selecting bool
 	selAnchor int
+
+	// search
+	searchMode  bool
+	searchQuery string
+	matches     []int
+	matchIdx    int
+
+	// goto line
+	gotoMode bool
+	gotoBuf  string
 }
 
 // New builds an inactive pane. onRef receives the line the user picked for the
@@ -104,6 +114,12 @@ func (p *Pane) OpenAt(path string, line int) {
 	p.active = true
 	p.pendingG = false
 	p.selecting = false
+	p.searchMode = false
+	p.searchQuery = ""
+	p.matches = nil
+	p.matchIdx = 0
+	p.gotoMode = false
+	p.gotoBuf = ""
 
 	if err := p.load(path, line); err != nil {
 		p.lines = nil
@@ -118,6 +134,8 @@ func (p *Pane) OpenAt(path string, line int) {
 func (p *Pane) Close() {
 	p.active = false
 	p.pendingG = false
+	p.searchMode = false
+	p.gotoMode = false
 }
 
 // Handle consumes keyboard input while the overlay is active.
@@ -130,10 +148,72 @@ func (p *Pane) Handle(ctx *components.EventContext, ev xui.Event) {
 		if !e.Press {
 			return
 		}
+		if p.searchMode {
+			p.handleSearchKey(ctx, e)
+			return
+		}
+		if p.gotoMode {
+			p.handleGotoKey(ctx, e)
+			return
+		}
 		p.notify(p.handleKey(ctx, e))
 	default:
 		ctx.Consume = true
 	}
+}
+
+func (p *Pane) handleSearchKey(ctx *components.EventContext, e xui.KeyEvent) {
+	switch e.Code {
+	case xui.KeyEscape:
+		p.searchMode = false
+		p.searchQuery = ""
+		p.matches = nil
+	case xui.KeyEnter:
+		p.searchMode = false
+	case xui.KeyBackspace:
+		if p.searchQuery != "" {
+			runes := []rune(p.searchQuery)
+			p.searchQuery = string(runes[:len(runes)-1])
+			p.updateSearch()
+		}
+	case xui.KeyRune:
+		if e.Mods.Has(xui.ModCtrl) || e.Mods.Has(xui.ModAlt) {
+			break
+		}
+		if e.Rune >= 0x20 {
+			p.searchQuery += string(e.Rune)
+			p.updateSearch()
+		}
+	}
+	ctx.ConsumeAndRedraw()
+}
+
+func (p *Pane) handleGotoKey(ctx *components.EventContext, e xui.KeyEvent) {
+	switch e.Code {
+	case xui.KeyEscape:
+		p.gotoMode = false
+		p.gotoBuf = ""
+	case xui.KeyEnter:
+		p.gotoMode = false
+		if p.gotoBuf != "" {
+			if n, err := strconv.Atoi(p.gotoBuf); err == nil && n > 0 {
+				p.line = clampLine(n-1, len(p.lines))
+				p.col = firstNonBlank(p.lineText())
+				p.clamp()
+				p.reveal()
+			}
+		}
+		p.gotoBuf = ""
+	case xui.KeyBackspace:
+		if p.gotoBuf != "" {
+			p.gotoBuf = p.gotoBuf[:len(p.gotoBuf)-1]
+		}
+	case xui.KeyRune:
+		if e.Rune >= '0' && e.Rune <= '9' {
+			p.gotoBuf += string(e.Rune)
+		}
+	}
+	ctx.ConsumeAndRedraw()
 }
 
 // handleKey runs one key against pane state. It returns a toast to raise, which
@@ -230,10 +310,36 @@ func (p *Pane) handleRune(ctx *components.EventContext, r rune) string {
 		p.col = 0
 	case '$':
 		p.col = len(p.lineText())
-	case 'v':
+	case 'v', 'V':
 		p.toggleSelect()
 	case 'a':
 		return p.addRef()
+	case '/':
+		p.searchMode = true
+		p.searchQuery = ""
+		p.matches = nil
+		p.matchIdx = 0
+		ctx.ConsumeAndRedraw()
+		return ""
+	case 'n':
+		msg := p.moveMatch(1)
+		ctx.ConsumeAndRedraw()
+		return msg
+	case 'N':
+		msg := p.moveMatch(-1)
+		ctx.ConsumeAndRedraw()
+		return msg
+	case ':':
+		p.gotoMode = true
+		p.gotoBuf = ""
+		ctx.ConsumeAndRedraw()
+		return ""
+	case '%':
+		p.jumpMatchingBracket()
+	case 'p':
+		p.selectParagraph()
+		ctx.ConsumeAndRedraw()
+		return ""
 	default:
 		ctx.Consume = true
 		return ""
@@ -520,12 +626,13 @@ func (p *Pane) selectedRef() (chat.Ref, bool) {
 	if p.selecting {
 		lo, hi = p.selectionLines()
 	}
+	text := strings.Join(p.lines[lo:hi+1], "\n")
 	return chat.Ref{
 		Path:  p.rel,
 		Start: lo + 1,
 		End:   hi + 1,
 		Lang:  fenceLang(p.abs),
-		Text:  strings.Join(p.lines[lo:hi+1], "\n"),
+		Text:  text,
 	}, true
 }
 
@@ -548,9 +655,15 @@ func (p *Pane) snapshot(ctx components.DrawContext) codeview.Model {
 	switch {
 	case p.loadErr != "":
 		status = p.loadErr
+	case p.searchMode:
+		status = p.searchStatus()
+	case p.gotoMode:
+		status = ":" + p.gotoBuf
 	case p.selecting:
 		lo, hi := p.selectionLines()
 		status = selectionStatus(hi - lo + 1)
+	case p.searchQuery != "":
+		status = p.searchStatus()
 	}
 	m := codeview.Model{
 		Theme:      p.theme,
@@ -568,10 +681,10 @@ func (p *Pane) snapshot(ctx components.DrawContext) codeview.Model {
 		Empty:      p.emptyText(),
 	}
 	if p.selecting {
-		// Line-wise: the moving end is pinned past any real line so the
-		// tint is clipped at the frame edge rather than stopping mid-line.
 		lo, hi := p.selectionLines()
 		m.Selecting = true
+		// Line-wise: the moving end is pinned past any real line so the
+		// tint is clipped at the frame edge rather than stopping mid-line.
 		m.SelStart = components.Point{X: 0, Y: lo}
 		m.SelEnd = components.Point{X: selLineWide, Y: hi}
 	}
@@ -619,8 +732,203 @@ func (p *Pane) emptyText() string {
 var hintLine = strings.Join([]string{
 	"esc close",
 	"j/k move",
-	"h/l ←/→",
-	"gg/G top/bottom",
+	"/ find",
+	": line",
 	"v select",
+	"p block",
+	"% match",
 	"a add",
 }, chrome.Sep)
+
+func (p *Pane) updateSearch() {
+	q := strings.ToLower(p.searchQuery)
+	p.matches = p.matches[:0]
+	if q == "" {
+		return
+	}
+	for i, line := range p.lines {
+		if strings.Contains(strings.ToLower(line), q) {
+			p.matches = append(p.matches, i)
+		}
+	}
+	if len(p.matches) > 0 {
+		p.matchIdx = 0
+		for i, m := range p.matches {
+			if m >= p.line {
+				p.matchIdx = i
+				break
+			}
+		}
+		p.line = p.matches[p.matchIdx]
+		p.col = firstNonBlank(p.lineText())
+		p.clamp()
+		p.reveal()
+	}
+}
+
+func (p *Pane) moveMatch(dir int) string {
+	if len(p.matches) == 0 {
+		if p.searchQuery != "" {
+			p.updateSearch()
+		}
+		if len(p.matches) == 0 {
+			return "no matches"
+		}
+	}
+	p.matchIdx = (p.matchIdx + dir) % len(p.matches)
+	if p.matchIdx < 0 {
+		p.matchIdx = len(p.matches) - 1
+	}
+	p.line = p.matches[p.matchIdx]
+	p.col = firstNonBlank(p.lineText())
+	p.clamp()
+	p.reveal()
+	return ""
+}
+
+func (p *Pane) searchStatus() string {
+	if p.searchQuery == "" {
+		return "/"
+	}
+	out := "/" + p.searchQuery
+	if len(p.matches) == 0 {
+		return out + "  no matches"
+	}
+	return fmt.Sprintf("%s  %d/%d", out, p.matchIdx+1, len(p.matches))
+}
+
+func bracketPair(r rune) (matching rune, isOpen, ok bool) {
+	switch r {
+	case '(':
+		return ')', true, true
+	case '{':
+		return '}', true, true
+	case '[':
+		return ']', true, true
+	case ')':
+		return '(', false, true
+	case '}':
+		return '{', false, true
+	case ']':
+		return '[', false, true
+	default:
+		return 0, false, false
+	}
+}
+
+func findTargetBracket(lineText string, col int) (bracket rune, colIdx int, found bool) {
+	if col >= 0 && col < len(lineText) {
+		r, _ := utf8.DecodeRuneInString(lineText[col:])
+		if _, _, ok := bracketPair(r); ok {
+			return r, col, true
+		}
+	}
+	for i, r := range lineText {
+		if i >= col {
+			if _, _, ok := bracketPair(r); ok {
+				return r, i, true
+			}
+		}
+	}
+	for i, r := range lineText {
+		if _, _, ok := bracketPair(r); ok {
+			return r, i, true
+		}
+	}
+	return 0, 0, false
+}
+
+func searchBracketForward(lines []string, startLine, startCol int, openRune, closeRune rune) (int, int, bool) {
+	depth := 0
+	for l := startLine; l < len(lines); l++ {
+		txt := lines[l]
+		col := 0
+		if l == startLine {
+			col = startCol
+		}
+		for col < len(txt) {
+			r, size := utf8.DecodeRuneInString(txt[col:])
+			switch r {
+			case openRune:
+				depth++
+			case closeRune:
+				depth--
+				if depth == 0 {
+					return l, col, true
+				}
+			}
+			col += size
+		}
+	}
+	return 0, 0, false
+}
+
+func searchBracketBackward(lines []string, startLine, startCol int, closeRune, openRune rune) (int, int, bool) {
+	depth := 0
+	for l := startLine; l >= 0; l-- {
+		txt := lines[l]
+		col := len(txt)
+		if l == startLine {
+			col = min(startCol+utf8.RuneLen(closeRune), len(txt))
+		}
+		for col > 0 {
+			r, size := utf8.DecodeLastRuneInString(txt[:col])
+			col -= size
+			switch r {
+			case closeRune:
+				depth++
+			case openRune:
+				depth--
+				if depth == 0 {
+					return l, col, true
+				}
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func (p *Pane) jumpMatchingBracket() {
+	if len(p.lines) == 0 || p.line >= len(p.lines) {
+		return
+	}
+	targetRune, targetCol, found := findTargetBracket(p.lineText(), p.col)
+	if !found {
+		return
+	}
+
+	matchRune, isOpen, _ := bracketPair(targetRune)
+	var (
+		destLine int
+		destCol  int
+		ok       bool
+	)
+	if isOpen {
+		destLine, destCol, ok = searchBracketForward(p.lines, p.line, targetCol, targetRune, matchRune)
+	} else {
+		destLine, destCol, ok = searchBracketBackward(p.lines, p.line, targetCol, targetRune, matchRune)
+	}
+	if ok {
+		p.line = destLine
+		p.col = destCol
+	}
+}
+
+func (p *Pane) selectParagraph() {
+	if len(p.lines) == 0 {
+		return
+	}
+	lo := p.line
+	hi := p.line
+	for lo > 0 && strings.TrimSpace(p.lines[lo-1]) != "" {
+		lo--
+	}
+	for hi < len(p.lines)-1 && strings.TrimSpace(p.lines[hi+1]) != "" {
+		hi++
+	}
+	p.selecting = true
+	p.selAnchor = lo
+	p.line = hi
+	p.clamp()
+	p.reveal()
+}

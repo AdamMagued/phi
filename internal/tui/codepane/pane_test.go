@@ -347,3 +347,243 @@ func TestFirstNonBlank(t *testing.T) {
 	assert.Equal(t, 3, firstNonBlank(" \t\tx"))
 	assert.Equal(t, 2, firstNonBlank("  日"))
 }
+
+func TestSearchModeAndNextPrev(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"a.go": "alpha one\nbeta two\nalpha three\n",
+	})
+	h.pane.Open("a.go")
+
+	h.key(t, '/')
+	assert.True(t, h.pane.searchMode)
+
+	for _, r := range "alpha" {
+		ctx := &components.EventContext{}
+		h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: r})
+	}
+	text := components.SurfaceText(h.draw())
+	assert.Contains(t, text, "/alpha")
+	assert.Contains(t, text, "1/2")
+	assert.Equal(t, 0, h.pane.line)
+
+	h.code(t, xui.KeyEnter)
+	assert.False(t, h.pane.searchMode)
+
+	h.key(t, 'n')
+	assert.Equal(t, 2, h.pane.line)
+	assert.Contains(t, components.SurfaceText(h.draw()), "2/2")
+
+	h.key(t, 'N')
+	assert.Equal(t, 0, h.pane.line)
+
+	// Selection extends with search match navigation
+	h.key(t, 'v')
+	h.key(t, 'n')
+	assert.True(t, h.pane.selecting)
+	assert.Equal(t, 2, h.pane.line)
+	lo, hi := h.pane.selectionLines()
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 2, hi)
+}
+
+func TestMatchingBracketJump(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"a.go": "func hello() {\n\tmsg := \"hi\"\n}\n",
+	})
+	h.pane.Open("a.go")
+
+	// Jump to bracket on line
+	h.pane.col = 13 // on '{'
+	h.key(t, '%')
+	assert.Equal(t, 2, h.pane.line)
+	assert.Equal(t, 0, h.pane.col)
+
+	// Jump back
+	h.key(t, '%')
+	assert.Equal(t, 0, h.pane.line)
+
+	// Select function by jumping matching bracket
+	h.key(t, 'v')
+	h.pane.col = 13
+	h.key(t, '%')
+	assert.True(t, h.pane.selecting)
+	lo, hi := h.pane.selectionLines()
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 2, hi)
+
+	h.key(t, 'a')
+	require.Len(t, h.refs, 1)
+	assert.Equal(t, 1, h.refs[0].Start)
+	assert.Equal(t, 3, h.refs[0].End)
+	assert.Contains(t, h.refs[0].Text, "func hello()")
+}
+
+func TestSelectParagraph(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"a.go": "line 1\nline 2\n\nline 3\n",
+	})
+	h.pane.Open("a.go")
+
+	h.key(t, 'p')
+	assert.True(t, h.pane.selecting)
+	lo, hi := h.pane.selectionLines()
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 1, hi)
+}
+
+func TestGotoLine(t *testing.T) {
+	lines := make([]string, 50)
+	for i := range lines {
+		lines[i] = "content"
+	}
+	h := newHarness(t, map[string]string{
+		"a.go": strings.Join(lines, "\n") + "\n",
+	})
+	h.pane.Open("a.go")
+
+	h.key(t, ':')
+	assert.True(t, h.pane.gotoMode)
+
+	ctx := &components.EventContext{}
+	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '2'})
+	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '5'})
+	assert.Contains(t, components.SurfaceText(h.draw()), ":25")
+
+	h.code(t, xui.KeyEnter)
+	assert.False(t, h.pane.gotoMode)
+	assert.Equal(t, 24, h.pane.line)
+
+	// Selection extends with goto line
+	h.key(t, 'v')
+	h.key(t, ':')
+	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '3'})
+	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '0'})
+	h.code(t, xui.KeyEnter)
+	assert.True(t, h.pane.selecting)
+	lo, hi := h.pane.selectionLines()
+	assert.Equal(t, 24, lo)
+	assert.Equal(t, 29, hi)
+}
+
+func TestBracketPair(t *testing.T) {
+	tests := []struct {
+		input  rune
+		match  rune
+		isOpen bool
+		ok     bool
+	}{
+		{'(', ')', true, true},
+		{'{', '}', true, true},
+		{'[', ']', true, true},
+		{')', '(', false, true},
+		{'}', '{', false, true},
+		{']', '[', false, true},
+		{'a', 0, false, false},
+		{' ', 0, false, false},
+		{'\n', 0, false, false},
+	}
+	for _, tc := range tests {
+		match, isOpen, ok := bracketPair(tc.input)
+		assert.Equal(t, tc.ok, ok, "ok for %q", tc.input)
+		assert.Equal(t, tc.match, match, "match for %q", tc.input)
+		assert.Equal(t, tc.isOpen, isOpen, "isOpen for %q", tc.input)
+	}
+}
+
+func TestFindTargetBracket(t *testing.T) {
+	// Directly on bracket
+	b, col, ok := findTargetBracket("foo(bar)", 3)
+	assert.True(t, ok)
+	assert.Equal(t, '(', b)
+	assert.Equal(t, 3, col)
+
+	// Before bracket on line
+	b, col, ok = findTargetBracket("foo(bar)", 0)
+	assert.True(t, ok)
+	assert.Equal(t, '(', b)
+	assert.Equal(t, 3, col)
+
+	// Past all brackets, wraps/falls back to first bracket on line
+	b, col, ok = findTargetBracket("foo(bar)", 8)
+	assert.True(t, ok)
+	assert.Equal(t, '(', b)
+	assert.Equal(t, 3, col)
+
+	// No brackets on line
+	_, _, ok = findTargetBracket("no brackets here", 0)
+	assert.False(t, ok)
+}
+
+func TestSearchBracketForwardAndBackward(t *testing.T) {
+	lines := []string{
+		"func example() {",
+		"\tif (a + b) > 0 {",
+		"\t\treturn [1]int{42}",
+		"\t}",
+		"}",
+	}
+
+	// Forward match for outer '{' at line 0, col 15
+	l, c, ok := searchBracketForward(lines, 0, 15, '{', '}')
+	assert.True(t, ok)
+	assert.Equal(t, 4, l)
+	assert.Equal(t, 0, c)
+
+	// Backward match for outer '}' at line 4, col 0
+	l, c, ok = searchBracketBackward(lines, 4, 0, '}', '{')
+	assert.True(t, ok)
+	assert.Equal(t, 0, l)
+	assert.Equal(t, 15, c)
+
+	// Forward match for inner '(' at line 1, col 4
+	l, c, ok = searchBracketForward(lines, 1, 4, '(', ')')
+	assert.True(t, ok)
+	assert.Equal(t, 1, l)
+	assert.Equal(t, 10, c)
+
+	// Backward match for inner ')' at line 1, col 10
+	l, c, ok = searchBracketBackward(lines, 1, 10, ')', '(')
+	assert.True(t, ok)
+	assert.Equal(t, 1, l)
+	assert.Equal(t, 4, c)
+
+	// Unmatched bracket forward
+	_, _, ok = searchBracketForward([]string{"(unclosed"}, 0, 0, '(', ')')
+	assert.False(t, ok)
+
+	// Unmatched bracket backward
+	_, _, ok = searchBracketBackward([]string{"unopened)"}, 0, 8, ')', '(')
+	assert.False(t, ok)
+}
+
+func TestMatchingBracketJumpEdgeCases(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"a.go": "var items = [3]int{1, 2, 3}\n// no brackets\nfunc unclosed() (\n",
+	})
+	h.pane.Open("a.go")
+
+	// Jump on square brackets
+	h.pane.line = 0
+	h.pane.col = 12 // on '['
+	h.key(t, '%')
+	assert.Equal(t, 0, h.pane.line)
+	assert.Equal(t, 14, h.pane.col) // on ']'
+
+	h.key(t, '%')
+	assert.Equal(t, 0, h.pane.line)
+	assert.Equal(t, 12, h.pane.col) // back to '['
+
+	// Jump on line with no brackets leaves cursor unchanged
+	h.pane.line = 1
+	h.pane.col = 5
+	h.key(t, '%')
+	assert.Equal(t, 1, h.pane.line)
+	assert.Equal(t, 5, h.pane.col)
+
+	// Jump with unmatched bracket leaves cursor unchanged
+	h.pane.line = 2
+	h.pane.col = 16 // on '('
+	h.key(t, '%')
+	assert.Equal(t, 2, h.pane.line)
+	assert.Equal(t, 16, h.pane.col)
+}
