@@ -52,6 +52,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pane reports once it knows no drag-selection happened.
 - TUI transcript: a selection across a title row no longer pastes the `▶` / `▼`
   disclosure glyph — selection copy drops transcript chrome.
+- TUI transcript: copying a selection that reached past the viewport dropped
+  every row outside it — a message spanning two pages copied only the page on
+  screen at release. The selected rows are now rendered on demand, and a drag
+  held on the top / bottom row scrolls the transcript so one gesture can reach
+  the next page. Blank margin rows around short content are no longer pasted.
 
 ### Security
 
