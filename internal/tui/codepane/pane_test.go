@@ -352,83 +352,193 @@ func TestSearchModeAndNextPrev(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		"a.go": "alpha one\nbeta two\nalpha three\n",
 	})
-	h.pane.Open("a.go")
+	h.pane.OpenAt("a.go", 2) // between the two matches
 
 	h.key(t, '/')
 	assert.True(t, h.pane.searchMode)
 
 	for _, r := range "alpha" {
-		ctx := &components.EventContext{}
-		h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: r})
+		h.key(t, r)
 	}
 	text := components.SurfaceText(h.draw())
 	assert.Contains(t, text, "/alpha")
-	assert.Contains(t, text, "1/2")
-	assert.Equal(t, 0, h.pane.line)
+	assert.Contains(t, text, "2/2")
+	assert.Equal(t, 2, h.pane.line, "the query lands on the first match below where / was pressed")
 
 	h.code(t, xui.KeyEnter)
 	assert.False(t, h.pane.searchMode)
+	// Enter keeps the query for n/N, so the location has to stay next to it.
+	text = components.SurfaceText(h.draw())
+	assert.Contains(t, text, "a.go:3:1")
+	assert.Contains(t, text, "2/2")
+
+	h.key(t, 'n')
+	assert.Equal(t, 0, h.pane.line, "n at the last match wraps to the first")
+	assert.Contains(t, components.SurfaceText(h.draw()), "1/2")
+
+	h.key(t, 'N')
+	assert.Equal(t, 2, h.pane.line, "N at the first match wraps to the last")
+	assert.Contains(t, components.SurfaceText(h.draw()), "2/2")
+
+	// The counter follows the caret: off a match there is no position in the
+	// match list to report, and saying nothing beats a stale "2/2".
+	h.key(t, 'k')
+	assert.Equal(t, 1, h.pane.line)
+	text = components.SurfaceText(h.draw())
+	assert.Contains(t, text, "a.go:2:1")
+	assert.NotContains(t, text, "1/2")
+	assert.NotContains(t, text, "2/2")
 
 	h.key(t, 'n')
 	assert.Equal(t, 2, h.pane.line)
-	assert.Contains(t, components.SurfaceText(h.draw()), "2/2")
-
-	h.key(t, 'N')
-	assert.Equal(t, 0, h.pane.line)
 
 	// Selection extends with search match navigation
 	h.key(t, 'v')
-	h.key(t, 'n')
+	h.key(t, 'N')
 	assert.True(t, h.pane.selecting)
-	assert.Equal(t, 2, h.pane.line)
+	assert.Equal(t, 0, h.pane.line)
 	lo, hi := h.pane.selectionLines()
 	assert.Equal(t, 0, lo)
 	assert.Equal(t, 2, hi)
 }
 
-func TestMatchingBracketJump(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		"a.go": "func hello() {\n\tmsg := \"hi\"\n}\n",
-	})
+func TestSearchWrapsToTheTopFromBelow(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "alpha one\nbeta two\ngamma three\n"})
+	h.pane.OpenAt("a.go", 3)
+
+	h.key(t, '/')
+	for _, r := range "alpha" {
+		h.key(t, r)
+	}
+	assert.Equal(t, 0, h.pane.line, "nothing matches below: the top is the next match")
+	assert.Contains(t, components.SurfaceText(h.draw()), "1/1")
+}
+
+func TestNextMatchStepsFromTheCaret(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "m0\nm1\nm2\nm3\nm4\n"})
 	h.pane.Open("a.go")
 
-	// Jump to bracket on line
-	h.pane.col = 13 // on '{'
-	h.key(t, '%')
-	assert.Equal(t, 2, h.pane.line)
-	assert.Equal(t, 0, h.pane.col)
+	h.key(t, '/')
+	h.key(t, 'm')
+	h.code(t, xui.KeyEnter)
+	require.Equal(t, 0, h.pane.line)
 
-	// Jump back
-	h.key(t, '%')
+	for range 3 {
+		h.key(t, 'j')
+	}
+	require.Equal(t, 3, h.pane.line)
+
+	h.key(t, 'n')
+	assert.Equal(t, 4, h.pane.line, "n steps from the caret, not from the last match it visited")
+	h.key(t, 'n')
+	assert.Equal(t, 0, h.pane.line, "and wraps at the end of the file")
+	h.key(t, 'N')
+	assert.Equal(t, 4, h.pane.line)
+}
+
+func TestSearchEscapeRestoresTheCaret(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "alpha one\nbeta two\nalpha three\n"})
+	h.pane.Open("a.go")
+	h.key(t, 'j')
+	h.key(t, 'l')
+	before := h.pane.pos()
+
+	h.key(t, '/')
+	for _, r := range "alpha" {
+		h.key(t, r)
+	}
+	require.Equal(t, 2, h.pane.line, "typing walks the caret to the match")
+
+	h.code(t, xui.KeyEscape)
+	assert.Equal(t, before, h.pane.pos())
+	assert.Empty(t, h.pane.searchQuery)
+	text := components.SurfaceText(h.draw())
+	assert.Contains(t, text, "a.go:2:2")
+	assert.NotContains(t, text, "1/2")
+}
+
+func TestSearchEscapeRestoresTheScroll(t *testing.T) {
+	lines := make([]string, 30)
+	for i := range lines {
+		lines[i] = "filler"
+	}
+	lines[25] = "needle"
+	h := newHarness(t, map[string]string{"a.go": strings.Join(lines, "\n") + "\n"})
+	h.pane.Open("a.go")
+	h.draw() // the viewport is only known once a frame has been painted
+
+	h.key(t, '/')
+	for _, r := range "needle" {
+		h.key(t, r)
+	}
+	require.Equal(t, 25, h.pane.line)
+	require.Positive(t, h.pane.scroll, "the match is scrolled into view")
+
+	h.code(t, xui.KeyEscape)
 	assert.Equal(t, 0, h.pane.line)
+	assert.Equal(t, 0, h.pane.scroll, "Esc gives the scroll back too")
+}
 
-	// Select function by jumping matching bracket
-	h.key(t, 'v')
-	h.pane.col = 13
-	h.key(t, '%')
-	assert.True(t, h.pane.selecting)
-	lo, hi := h.pane.selectionLines()
-	assert.Equal(t, 0, lo)
-	assert.Equal(t, 2, hi)
+func TestSearchWithNothingToRepeat(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "alpha\n"})
+	h.pane.Open("a.go")
 
+	h.key(t, 'n')
+	assert.Empty(t, h.toasts, "n with no query to repeat does nothing")
+
+	h.key(t, '/')
+	for _, r := range "zzz" {
+		h.key(t, r)
+	}
+	assert.Contains(t, components.SurfaceText(h.draw()), "no matches")
+
+	h.code(t, xui.KeyEnter)
+	h.key(t, 'n')
+	assert.Equal(t, []string{"no matches"}, h.toasts)
+	assert.Contains(t, components.SurfaceText(h.draw()), "a.go:1:1")
+}
+
+func TestSearchScansOneLowercaseCopy(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "Alpha One\nbeta two\n"})
+	h.pane.Open("a.go")
+	assert.Nil(t, h.pane.lowered, "no lowercase copy before the first search")
+
+	h.key(t, '/')
 	h.key(t, 'a')
-	require.Len(t, h.refs, 1)
-	assert.Equal(t, 1, h.refs[0].Start)
-	assert.Equal(t, 3, h.refs[0].End)
-	assert.Contains(t, h.refs[0].Text, "func hello()")
+	require.Len(t, h.pane.lowered, len(h.pane.lines))
+	assert.Equal(t, "alpha one", h.pane.lowered[0])
+
+	// Reopening drops the copy: it belongs to the lines it was built from.
+	h.pane.Open("a.go")
+	assert.Nil(t, h.pane.lowered)
 }
 
 func TestSelectParagraph(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"a.go": "line 1\nline 2\n\nline 3\n",
+		"a.go": "line 1\nline 2\n\nline 3\nline 4\n",
 	})
 	h.pane.Open("a.go")
 
+	h.key(t, 'j') // inside the first paragraph
 	h.key(t, 'p')
 	assert.True(t, h.pane.selecting)
 	lo, hi := h.pane.selectionLines()
 	assert.Equal(t, 0, lo)
 	assert.Equal(t, 1, hi)
+
+	h.key(t, 'p')
+	assert.False(t, h.pane.selecting, "p again drops the paragraph")
+
+	h.pane.line = 4 // the second paragraph
+	h.key(t, 'p')
+	lo, hi = h.pane.selectionLines()
+	assert.Equal(t, 3, lo)
+	assert.Equal(t, 4, hi)
+
+	h.key(t, 'a')
+	require.Len(t, h.refs, 1)
+	assert.Equal(t, 4, h.refs[0].Start)
+	assert.Equal(t, 5, h.refs[0].End)
 }
 
 func TestGotoLine(t *testing.T) {
@@ -444,10 +554,12 @@ func TestGotoLine(t *testing.T) {
 	h.key(t, ':')
 	assert.True(t, h.pane.gotoMode)
 
-	ctx := &components.EventContext{}
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '2'})
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '5'})
-	assert.Contains(t, components.SurfaceText(h.draw()), ":25")
+	h.key(t, '2')
+	h.key(t, 'x') // only digits go into the buffer
+	h.key(t, '5')
+	text := components.SurfaceText(h.draw())
+	assert.Contains(t, text, ":25")
+	assert.Contains(t, text, "50 lines", "the prompt shows the range a number may land in")
 
 	h.code(t, xui.KeyEnter)
 	assert.False(t, h.pane.gotoMode)
@@ -456,134 +568,50 @@ func TestGotoLine(t *testing.T) {
 	// Selection extends with goto line
 	h.key(t, 'v')
 	h.key(t, ':')
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '3'})
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '0'})
+	h.key(t, '3')
+	h.key(t, '0')
 	h.code(t, xui.KeyEnter)
 	assert.True(t, h.pane.selecting)
 	lo, hi := h.pane.selectionLines()
 	assert.Equal(t, 24, lo)
 	assert.Equal(t, 29, hi)
-}
 
-func TestBracketPair(t *testing.T) {
-	tests := []struct {
-		input  rune
-		match  rune
-		isOpen bool
-		ok     bool
-	}{
-		{'(', ')', true, true},
-		{'{', '}', true, true},
-		{'[', ']', true, true},
-		{')', '(', false, true},
-		{'}', '{', false, true},
-		{']', '[', false, true},
-		{'a', 0, false, false},
-		{' ', 0, false, false},
-		{'\n', 0, false, false},
+	h.code(t, xui.KeyEscape) // drop the selection, not the pane
+	require.False(t, h.pane.selecting)
+
+	// Past the end lands on the last line; a bare : goes nowhere.
+	h.key(t, ':')
+	for range 3 {
+		h.key(t, '9')
 	}
-	for _, tc := range tests {
-		match, isOpen, ok := bracketPair(tc.input)
-		assert.Equal(t, tc.ok, ok, "ok for %q", tc.input)
-		assert.Equal(t, tc.match, match, "match for %q", tc.input)
-		assert.Equal(t, tc.isOpen, isOpen, "isOpen for %q", tc.input)
-	}
+	h.code(t, xui.KeyEnter)
+	assert.Equal(t, 49, h.pane.line)
+
+	h.key(t, ':')
+	h.code(t, xui.KeyEnter)
+	assert.Equal(t, 49, h.pane.line)
 }
 
-func TestFindTargetBracket(t *testing.T) {
-	// Directly on bracket
-	b, col, ok := findTargetBracket("foo(bar)", 3)
-	assert.True(t, ok)
-	assert.Equal(t, '(', b)
-	assert.Equal(t, 3, col)
-
-	// Before bracket on line
-	b, col, ok = findTargetBracket("foo(bar)", 0)
-	assert.True(t, ok)
-	assert.Equal(t, '(', b)
-	assert.Equal(t, 3, col)
-
-	// Past all brackets, wraps/falls back to first bracket on line
-	b, col, ok = findTargetBracket("foo(bar)", 8)
-	assert.True(t, ok)
-	assert.Equal(t, '(', b)
-	assert.Equal(t, 3, col)
-
-	// No brackets on line
-	_, _, ok = findTargetBracket("no brackets here", 0)
-	assert.False(t, ok)
-}
-
-func TestSearchBracketForwardAndBackward(t *testing.T) {
-	lines := []string{
-		"func example() {",
-		"\tif (a + b) > 0 {",
-		"\t\treturn [1]int{42}",
-		"\t}",
-		"}",
-	}
-
-	// Forward match for outer '{' at line 0, col 15
-	l, c, ok := searchBracketForward(lines, 0, 15, '{', '}')
-	assert.True(t, ok)
-	assert.Equal(t, 4, l)
-	assert.Equal(t, 0, c)
-
-	// Backward match for outer '}' at line 4, col 0
-	l, c, ok = searchBracketBackward(lines, 4, 0, '}', '{')
-	assert.True(t, ok)
-	assert.Equal(t, 0, l)
-	assert.Equal(t, 15, c)
-
-	// Forward match for inner '(' at line 1, col 4
-	l, c, ok = searchBracketForward(lines, 1, 4, '(', ')')
-	assert.True(t, ok)
-	assert.Equal(t, 1, l)
-	assert.Equal(t, 10, c)
-
-	// Backward match for inner ')' at line 1, col 10
-	l, c, ok = searchBracketBackward(lines, 1, 10, ')', '(')
-	assert.True(t, ok)
-	assert.Equal(t, 1, l)
-	assert.Equal(t, 4, c)
-
-	// Unmatched bracket forward
-	_, _, ok = searchBracketForward([]string{"(unclosed"}, 0, 0, '(', ')')
-	assert.False(t, ok)
-
-	// Unmatched bracket backward
-	_, _, ok = searchBracketBackward([]string{"unopened)"}, 0, 8, ')', '(')
-	assert.False(t, ok)
-}
-
-func TestMatchingBracketJumpEdgeCases(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		"a.go": "var items = [3]int{1, 2, 3}\n// no brackets\nfunc unclosed() (\n",
-	})
+func TestReopenDropsPromptState(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "alpha\nbeta\n"})
 	h.pane.Open("a.go")
 
-	// Jump on square brackets
-	h.pane.line = 0
-	h.pane.col = 12 // on '['
-	h.key(t, '%')
-	assert.Equal(t, 0, h.pane.line)
-	assert.Equal(t, 14, h.pane.col) // on ']'
+	h.key(t, '/')
+	h.key(t, 'a')
+	h.code(t, xui.KeyEnter)
+	require.Equal(t, "a", h.pane.searchQuery)
 
-	h.key(t, '%')
-	assert.Equal(t, 0, h.pane.line)
-	assert.Equal(t, 12, h.pane.col) // back to '['
+	h.pane.Close()
+	assert.False(t, h.pane.searchMode)
+	assert.Empty(t, h.pane.searchQuery)
+	assert.Nil(t, h.pane.matches)
 
-	// Jump on line with no brackets leaves cursor unchanged
-	h.pane.line = 1
-	h.pane.col = 5
-	h.key(t, '%')
-	assert.Equal(t, 1, h.pane.line)
-	assert.Equal(t, 5, h.pane.col)
+	h.pane.Open("a.go")
+	h.key(t, ':')
+	h.key(t, '1')
+	require.True(t, h.pane.gotoMode)
 
-	// Jump with unmatched bracket leaves cursor unchanged
-	h.pane.line = 2
-	h.pane.col = 16 // on '('
-	h.key(t, '%')
-	assert.Equal(t, 2, h.pane.line)
-	assert.Equal(t, 16, h.pane.col)
+	h.pane.Open("a.go")
+	assert.False(t, h.pane.gotoMode)
+	assert.Empty(t, h.pane.gotoBuf)
 }

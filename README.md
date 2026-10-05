@@ -265,14 +265,16 @@ diffs drops them and nothing is written to disk.
 ## Code viewer
 
 `/code <path>[:line]` opens a full-screen source viewer: syntax highlighting, a
-CJK-aware caret (`j`/`k`, `h`/`l`, `gg`/`G`), and `v` to select lines then `a`
-to hand them to the chat input as a `path:12-18` reference the model reads.
-The pane reads files itself and answers to the same deny list as the tool
-gate, so sensitive paths (`~/.ssh`, `.env`, …), binaries and files over 8 MiB
-are refused with a toast.
+CJK-aware caret (`j`/`k`, `h`/`l`, `gg`/`G`), in-file search (`/`, then `n`/`N`),
+`:line` to jump to a line, and `v` for lines or `p` for the paragraph under the
+caret, then `a` to hand the selection to the chat input as a `path:12-18`
+reference the model reads. The pane reads files itself and answers to the same
+deny list as the tool gate, so sensitive paths (`~/.ssh`, `.env`, …), binaries
+and files over 8 MiB are refused with a toast.
 
-`Esc` closes. The status row shows the path, caret and line count while
-reading, and the selection size while `v` is active.
+`Esc` closes, or cancels a search back to where `/` was pressed. The status row
+shows the path, caret and line count while reading, the selection size while `v`
+is active, and the match counter (`2/5`) while a search is live.
 
 ## Branch switching
 
