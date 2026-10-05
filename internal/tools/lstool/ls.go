@@ -162,7 +162,13 @@ func shouldSkip(name string) bool {
 	return (name != "" && name[0] == '.') || skipDirs[name]
 }
 
-func buildTree(ctx context.Context, dir string, fileCount *int, stoppedEarly *bool, limit, currentDepth, maxDepth int) *treeNode {
+func buildTree(
+	ctx context.Context,
+	dir string,
+	fileCount *int,
+	stoppedEarly *bool,
+	limit, currentDepth, maxDepth int,
+) *treeNode {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -190,9 +196,7 @@ func buildTree(ctx context.Context, dir string, fileCount *int, stoppedEarly *bo
 
 		if *fileCount >= limit {
 			// Current entry (and any after it) did not fit — the listing is cut.
-			if stoppedEarly != nil {
-				*stoppedEarly = true
-			}
+			*stoppedEarly = true
 			break
 		}
 
