@@ -783,7 +783,7 @@ var hintLine = strings.Join([]string{
 	"/ find",
 	": line",
 	"v select",
-	"p block",
+	"p para",
 	"a add",
 }, chrome.Sep)
 
@@ -915,29 +915,42 @@ func (p *Pane) matchAfter(line int) int {
 // matchBefore is the index of the last match above line, wrapping to the
 // bottom: what N does at the top of the file.
 func (p *Pane) matchBefore(line int) int {
-	for i := len(p.matches) - 1; i >= 0; i-- {
-		if p.matches[i] < line {
-			return i
+	idx := len(p.matches) - 1 // nothing above: wrap to the bottom match
+	for i, m := range p.matches {
+		if m >= line {
+			break
 		}
+		idx = i
 	}
-	return len(p.matches) - 1
+	return idx
 }
 
+// selectParagraph selects the paragraph around the caret: the run of non-blank
+// lines it sits in. The caret parks on the paragraph's last line, as it must,
+// because the selection has one moving end and a paragraph cannot be selected
+// without the caret riding it.
 func (p *Pane) selectParagraph() {
 	if len(p.lines) == 0 {
 		return
 	}
-	lo := p.line
-	hi := p.line
+	lo, hi := p.paragraph()
+	if p.selecting && p.selAnchor == lo && p.line == hi {
+		p.selecting = false // p again drops the paragraph it just selected
+		return
+	}
+	p.selecting = true
+	p.selAnchor = lo
+	p.jumpToLine(hi)
+}
+
+// paragraph is the run of non-blank lines the caret sits in.
+func (p *Pane) paragraph() (lo, hi int) {
+	lo, hi = p.line, p.line
 	for lo > 0 && strings.TrimSpace(p.lines[lo-1]) != "" {
 		lo--
 	}
 	for hi < len(p.lines)-1 && strings.TrimSpace(p.lines[hi+1]) != "" {
 		hi++
 	}
-	p.selecting = true
-	p.selAnchor = lo
-	p.line = hi
-	p.clamp()
-	p.reveal()
+	return lo, hi
 }

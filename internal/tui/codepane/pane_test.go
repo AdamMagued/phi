@@ -476,7 +476,7 @@ func TestSearchEscapeRestoresTheScroll(t *testing.T) {
 
 	h.code(t, xui.KeyEscape)
 	assert.Equal(t, 0, h.pane.line)
-	assert.Equal(t, 0, h.pane.scroll, "cancelling gives the scroll back too")
+	assert.Equal(t, 0, h.pane.scroll, "Esc gives the scroll back too")
 }
 
 func TestSearchWithNothingToRepeat(t *testing.T) {
@@ -515,15 +515,30 @@ func TestSearchScansOneLowercaseCopy(t *testing.T) {
 
 func TestSelectParagraph(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"a.go": "line 1\nline 2\n\nline 3\n",
+		"a.go": "line 1\nline 2\n\nline 3\nline 4\n",
 	})
 	h.pane.Open("a.go")
 
+	h.key(t, 'j') // inside the first paragraph
 	h.key(t, 'p')
 	assert.True(t, h.pane.selecting)
 	lo, hi := h.pane.selectionLines()
 	assert.Equal(t, 0, lo)
 	assert.Equal(t, 1, hi)
+
+	h.key(t, 'p')
+	assert.False(t, h.pane.selecting, "p again drops the paragraph")
+
+	h.pane.line = 4 // the second paragraph
+	h.key(t, 'p')
+	lo, hi = h.pane.selectionLines()
+	assert.Equal(t, 3, lo)
+	assert.Equal(t, 4, hi)
+
+	h.key(t, 'a')
+	require.Len(t, h.refs, 1)
+	assert.Equal(t, 4, h.refs[0].Start)
+	assert.Equal(t, 5, h.refs[0].End)
 }
 
 func TestGotoLine(t *testing.T) {
@@ -539,10 +554,12 @@ func TestGotoLine(t *testing.T) {
 	h.key(t, ':')
 	assert.True(t, h.pane.gotoMode)
 
-	ctx := &components.EventContext{}
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '2'})
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '5'})
-	assert.Contains(t, components.SurfaceText(h.draw()), ":25")
+	h.key(t, '2')
+	h.key(t, 'x') // only digits go into the buffer
+	h.key(t, '5')
+	text := components.SurfaceText(h.draw())
+	assert.Contains(t, text, ":25")
+	assert.Contains(t, text, "50 lines", "the prompt shows the range a number may land in")
 
 	h.code(t, xui.KeyEnter)
 	assert.False(t, h.pane.gotoMode)
@@ -551,11 +568,50 @@ func TestGotoLine(t *testing.T) {
 	// Selection extends with goto line
 	h.key(t, 'v')
 	h.key(t, ':')
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '3'})
-	h.pane.Handle(ctx, xui.KeyEvent{Press: true, Code: xui.KeyRune, Rune: '0'})
+	h.key(t, '3')
+	h.key(t, '0')
 	h.code(t, xui.KeyEnter)
 	assert.True(t, h.pane.selecting)
 	lo, hi := h.pane.selectionLines()
 	assert.Equal(t, 24, lo)
 	assert.Equal(t, 29, hi)
+
+	h.code(t, xui.KeyEscape) // drop the selection, not the pane
+	require.False(t, h.pane.selecting)
+
+	// Past the end lands on the last line; a bare : goes nowhere.
+	h.key(t, ':')
+	for range 3 {
+		h.key(t, '9')
+	}
+	h.code(t, xui.KeyEnter)
+	assert.Equal(t, 49, h.pane.line)
+
+	h.key(t, ':')
+	h.code(t, xui.KeyEnter)
+	assert.Equal(t, 49, h.pane.line)
+}
+
+func TestReopenDropsPromptState(t *testing.T) {
+	h := newHarness(t, map[string]string{"a.go": "alpha\nbeta\n"})
+	h.pane.Open("a.go")
+
+	h.key(t, '/')
+	h.key(t, 'a')
+	h.code(t, xui.KeyEnter)
+	require.Equal(t, "a", h.pane.searchQuery)
+
+	h.pane.Close()
+	assert.False(t, h.pane.searchMode)
+	assert.Empty(t, h.pane.searchQuery)
+	assert.Nil(t, h.pane.matches)
+
+	h.pane.Open("a.go")
+	h.key(t, ':')
+	h.key(t, '1')
+	require.True(t, h.pane.gotoMode)
+
+	h.pane.Open("a.go")
+	assert.False(t, h.pane.gotoMode)
+	assert.Empty(t, h.pane.gotoBuf)
 }
