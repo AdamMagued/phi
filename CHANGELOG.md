@@ -10,6 +10,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.28.3] - 2026-10-05
+
+### Added
+
 - TypeScript extension SDK under `ext/ts` (`@pulseaiclub/phi-ext`): the same
   PXB wire protocol and author surface as `ext/go` / `ext/rust` — LLM tools
   (sync or async), slash commands, intercepts, event subscriptions, confirm
@@ -914,7 +928,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.2...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.3...HEAD
+[0.28.3]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.3
 [0.28.2]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.2
 [0.28.1]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.1
 [0.28.0]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.0
