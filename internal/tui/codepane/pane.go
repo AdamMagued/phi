@@ -810,8 +810,8 @@ func (p *Pane) updateSearch() {
 }
 
 // ensureLowered builds the lowercase copy search scans. One pass per file beats
-// a ToLower per line per keystroke: on an 8 MiB file that is ~9 ms of work on
-// every character typed against ~0.5 ms.
+// a ToLower per line per keystroke: on an 8 MiB file the first character typed
+// pays ~9 ms once, and the ones after it scan in ~1 ms.
 func (p *Pane) ensureLowered() {
 	if p.lowered != nil {
 		return
@@ -823,8 +823,8 @@ func (p *Pane) ensureLowered() {
 }
 
 // moveMatch steps n (dir > 0) and N (dir < 0) from the caret. Measuring from
-// the caret rather than from the index of the match last visited is what keeps
-// a n after a j or k from stepping backwards.
+// the caret rather than from the index of the match last visited is what stops
+// n from stepping backwards after a j or k.
 func (p *Pane) moveMatch(dir int) string {
 	if len(p.matches) == 0 {
 		if p.searchQuery == "" {

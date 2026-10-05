@@ -23,12 +23,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- `/code`: `p` toggles the paragraph under the caret, and a typed search lands
+  on the first match at or below where `/` was pressed instead of following the
+  caret down the file. The file's lowercase copy is built once per search
+  instead of once per keystroke (~9 ms a character on an 8 MiB file before).
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
 
+- `/code`: `n`/`N` stepped a stored match index, so a `j`/`k` between two
+  searches sent `n` backwards; they measure from the caret now. The status row
+  keeps the path, caret and line count beside the match counter instead of
+  replacing them with it, and `Esc` in the search prompt puts the caret back
+  where `/` was pressed.
 - `phi config`: the footer hints now name `d delete`, which deleted a model or
   a bash rule without ever being advertised. The line also drops whole hints
   when the terminal is too narrow instead of cutting the last one mid-word.
