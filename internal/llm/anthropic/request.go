@@ -1,6 +1,10 @@
 package anthropic
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/pulseaiclub/phi/internal/llm"
+)
 
 type cacheControl struct {
 	Type string `json:"type"`
@@ -23,11 +27,12 @@ type AnthropicRequest struct {
 	Stream    bool               `json:"stream"`
 	Tools     []anthropicTool    `json:"tools,omitempty"`
 	Thinking  *thinkingConfig    `json:"thinking,omitempty"`
+	native    *llm.NativeState
 }
 
 type anthropicMessage struct {
 	Role    string `json:"role"`
-	Content any    `json:"content"` // string or []anthropicContentBlock
+	Content any    `json:"content"` // string, typed blocks, or native content
 }
 
 type anthropicTool struct {
