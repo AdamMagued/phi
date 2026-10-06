@@ -72,6 +72,31 @@ jobs:
         run: cargo fmt --check && cargo clippy --all-targets -- -D warnings
         working-directory: ext/rust
 
+  ext-sdk-ts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          # The suite runs TypeScript through Node's type stripping, so it needs
+          # Node >= 23.6; the package's engines (>= 20) only covers built dist/.
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ext/ts/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: ext/ts
+
+      # Same gate as the prepublishOnly hook: typecheck, tests, then prove
+      # dist/ still emits (the published tarball ships dist/ only).
+      - name: Check
+        run: npm run check && npm run build
+        working-directory: ext/ts
+
   lint:
     runs-on: ubuntu-latest
     steps:
