@@ -17,6 +17,12 @@ const maxAPIErrorBodyChars = 2000
 // reaches the UI; the trimmed raw body (capped) is the fallback for bodies
 // with no recognizable envelope.
 func FormatAPIError(provider string, status int, body []byte) error {
+	return fmt.Errorf("%s API error (%d): %s", provider, status, APIErrorMessage(body))
+}
+
+// APIErrorMessage unwraps a provider error without inventing an HTTP status
+// for errors delivered inside an otherwise successful streaming response.
+func APIErrorMessage(body []byte) string {
 	msg := apiErrorMessage(body)
 	if msg == "" {
 		msg = strings.TrimSpace(string(body))
@@ -27,7 +33,7 @@ func FormatAPIError(provider string, status int, body []byte) error {
 	if msg == "" {
 		msg = "empty error response"
 	}
-	return fmt.Errorf("%s API error (%d): %s", provider, status, msg)
+	return msg
 }
 
 // apiErrorMessage extracts the human-readable message from a provider error
