@@ -502,6 +502,10 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 				continue
 			}
 			usage.CompletionTokens = msgDelta.Usage.OutputTokens
+		case "error":
+			err := fmt.Errorf("anthropic stream error: %s", llm.APIErrorMessage(payloadLine))
+			yield(llm.StreamEvent{Type: llm.StreamEventTypeError, Err: err.Error()}, err)
+			return
 		}
 	}
 
