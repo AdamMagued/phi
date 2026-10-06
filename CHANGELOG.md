@@ -18,6 +18,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- `ls` no longer prints a truncation notice when a directory holds exactly `limit` files; the notice only appears when the walk actually stops early ([#285](https://github.com/pulseaiclub/phi/issues/285))
+
 ### Security
 
 ## [0.28.3] - 2026-10-05

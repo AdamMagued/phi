@@ -139,7 +139,8 @@ func runLs(ctx context.Context, in lsInput) (tooldef.Result, error) {
 	limit, maxDepth := normalizeOptions(in.Limit, in.MaxDepth)
 
 	var fileCount int
-	root := buildTree(ctx, dir, &fileCount, limit, 0, maxDepth)
+	var stoppedEarly bool
+	root := buildTree(ctx, dir, &fileCount, &stoppedEarly, limit, 0, maxDepth)
 	if root == nil {
 		return tooldef.Result{}, fmt.Errorf("failed to build tree for directory %s", dir)
 	}
@@ -147,7 +148,9 @@ func runLs(ctx context.Context, in lsInput) (tooldef.Result, error) {
 	display := tooldef.RelToCwd(ctx, dir)
 	treeStr := renderTree(display, root.Children)
 
-	if fileCount < limit {
+	// A directory holding exactly limit files is a complete listing. Only
+	// claim truncation when the walk actually stopped early with more to show.
+	if !stoppedEarly {
 		return tooldef.Result{Content: treeStr, Detail: display, Output: treeStr}, nil
 	}
 
@@ -159,7 +162,13 @@ func shouldSkip(name string) bool {
 	return (name != "" && name[0] == '.') || skipDirs[name]
 }
 
-func buildTree(ctx context.Context, dir string, fileCount *int, limit, currentDepth, maxDepth int) *treeNode {
+func buildTree(
+	ctx context.Context,
+	dir string,
+	fileCount *int,
+	stoppedEarly *bool,
+	limit, currentDepth, maxDepth int,
+) *treeNode {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -186,6 +195,8 @@ func buildTree(ctx context.Context, dir string, fileCount *int, limit, currentDe
 		}
 
 		if *fileCount >= limit {
+			// Current entry (and any after it) did not fit — the listing is cut.
+			*stoppedEarly = true
 			break
 		}
 
@@ -199,7 +210,7 @@ func buildTree(ctx context.Context, dir string, fileCount *int, limit, currentDe
 				})
 				continue
 			}
-			child := buildTree(ctx, childPath, fileCount, limit, currentDepth+1, maxDepth)
+			child := buildTree(ctx, childPath, fileCount, stoppedEarly, limit, currentDepth+1, maxDepth)
 			if child != nil {
 				node.Children = append(node.Children, child)
 			} else {

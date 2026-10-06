@@ -92,3 +92,24 @@ func TestLs_PlainStringPath(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, out.Content, "x.txt")
 }
+
+func TestLs_ExactLimitIsNotTruncated(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "only.txt"), []byte("x"), 0o644))
+
+	out, err := runLs(t.Context(), lsInput{Path: root, Limit: 1})
+	require.NoError(t, err)
+	require.Contains(t, out.Content, "only.txt")
+	require.NotContains(t, out.Content, "Tree truncated",
+		"a directory holding exactly limit files is not truncated")
+}
+
+func TestLs_OverLimitStillTruncates(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "b.txt"), []byte("b"), 0o644))
+
+	out, err := runLs(t.Context(), lsInput{Path: root, Limit: 1})
+	require.NoError(t, err)
+	require.Contains(t, out.Content, "Tree truncated after 1 files")
+}
