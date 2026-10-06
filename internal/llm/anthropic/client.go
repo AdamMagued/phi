@@ -3,6 +3,8 @@ package anthropic
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,6 +87,24 @@ func BuildRequest(
 			CacheControl: cc,
 		}}
 	}
+	for i, t := range tools {
+		tool := anthropicTool{
+			Name:        t.Name,
+			Description: t.Description,
+			InputSchema: llm.MarshalToolParams(t.Params, "{}"),
+		}
+		if i == len(tools)-1 {
+			tool.CacheControl = cc
+		}
+		req.Tools = append(req.Tools, tool)
+	}
+	prefix := sha256.New()
+	prefixValid := writePrefix(prefix, struct {
+		System []sysBlock      `json:"system"`
+		Tools  []anthropicTool `json:"tools"`
+	}{req.System, req.Tools})
+	endpoint := endpointFingerprint(cfg.BaseURL)
+	toolIDs := make(map[string]string)
 
 	for i := 0; i < len(msgs); i++ {
 		m := msgs[i]
@@ -114,12 +134,25 @@ func BuildRequest(
 
 		case llm.RoleAssistant:
 			msg := anthropicMessage{Role: "assistant"}
-			if len(m.ToolCalls) > 0 {
+			state := m.Native
+			if state != nil && len(state.Items) > 0 && state.API == llm.Anthropic &&
+				state.Model == cfg.Name && state.Endpoint == endpoint && prefixValid &&
+				state.Prefix == hex.EncodeToString(prefix.Sum(nil)) && req.Thinking != nil {
+				items := make([]json.RawMessage, len(state.Items))
+				for j, item := range state.Items {
+					items[j] = bytes.Clone(item)
+				}
+				msg.Content = items
+				for _, tc := range m.ToolCalls {
+					toolIDs[tc.ID] = tc.ID
+				}
+			} else if len(m.ToolCalls) > 0 {
 				var blocks []anthropicContentBlock
 				if m.Content != "" {
 					blocks = append(blocks, anthropicContentBlock{Type: "text", Text: m.Content})
 				}
 				for _, tc := range m.ToolCalls {
+					toolIDs[tc.ID] = normalizeToolCallID(tc.ID)
 					blocks = append(blocks, anthropicContentBlock{
 						Type:  "tool_use",
 						ID:    normalizeToolCallID(tc.ID),
@@ -128,8 +161,10 @@ func BuildRequest(
 					})
 				}
 				msg.Content = blocks
-			} else {
+			} else if m.Content != "" {
 				msg.Content = m.Content
+			} else {
+				continue // Legacy thinking-only messages have no replayable content.
 			}
 			req.Messages = append(req.Messages, msg)
 
@@ -137,9 +172,13 @@ func BuildRequest(
 			blocks := make([]anthropicContentBlock, 0, 1)
 			for i < len(msgs) && msgs[i].Role == llm.RoleTool {
 				tm := msgs[i]
+				id, ok := toolIDs[tm.ToolCallID]
+				if !ok {
+					id = normalizeToolCallID(tm.ToolCallID)
+				}
 				blocks = append(blocks, anthropicContentBlock{
 					Type:      "tool_result",
-					ToolUseID: normalizeToolCallID(tm.ToolCallID),
+					ToolUseID: id,
 					Content:   tm.Content,
 				})
 				i++
@@ -149,6 +188,14 @@ func BuildRequest(
 				Role:    "user",
 				Content: blocks,
 			})
+		default:
+			continue
+		}
+		prefixValid = writePrefix(prefix, req.Messages[len(req.Messages)-1]) && prefixValid
+	}
+	if prefixValid {
+		req.native = &llm.NativeState{
+			API: llm.Anthropic, Model: cfg.Name, Endpoint: endpoint, Prefix: hex.EncodeToString(prefix.Sum(nil)),
 		}
 	}
 
@@ -173,18 +220,6 @@ func BuildRequest(
 				}
 			}
 		}
-	}
-
-	for i, t := range tools {
-		tool := anthropicTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: llm.MarshalToolParams(t.Params, "{}"),
-		}
-		if i == len(tools)-1 {
-			tool.CacheControl = cc
-		}
-		req.Tools = append(req.Tools, tool)
 	}
 
 	return req
@@ -339,7 +374,18 @@ func Stream(
 			return
 		}
 
-		processStream(httpResp.Body, yield)
+		processStream(httpResp.Body, func(ev llm.StreamEvent, err error) bool {
+			if ev.Final != nil && ev.Final.Native != nil {
+				if req.native == nil {
+					ev.Final.Native = nil
+				} else {
+					state := *req.native
+					state.Items = ev.Final.Native.Items
+					ev.Final.Native = &state
+				}
+			}
+			return yield(ev, err)
+		})
 	}
 }
 
@@ -351,8 +397,11 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 		toolCalls   []llm.ToolCall
 		currentTool *llm.ToolCall
 		toolArgs    strings.Builder
+		native      nativeCapture
+		stopped     bool
 	)
 
+stream:
 	for data, parseErr := range util.ParseDataStream(body) {
 		if parseErr != nil {
 			yield(llm.StreamEvent{Type: llm.StreamEventTypeError, Err: parseErr.Error()}, parseErr)
@@ -367,6 +416,7 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 			Type string `json:"type"`
 		}
 		if err := json.Unmarshal(payloadLine, &envelope); err != nil {
+			native.invalid = true
 			continue
 		}
 
@@ -397,25 +447,45 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 
 		case "content_block_start":
 			var block struct {
-				Index        int `json:"index"`
-				ContentBlock struct {
-					Type string `json:"type"`
-					ID   string `json:"id"`
-					Name string `json:"name"`
-				} `json:"content_block"`
+				Index        int             `json:"index"`
+				ContentBlock json.RawMessage `json:"content_block"`
 			}
 			if err := json.Unmarshal(payloadLine, &block); err != nil {
+				native.invalid = true
 				continue
 			}
-			if block.ContentBlock.Type == "tool_use" {
+			native.start(block.Index, block.ContentBlock)
+			var start struct {
+				Type     string          `json:"type"`
+				ID       string          `json:"id"`
+				Name     string          `json:"name"`
+				Text     string          `json:"text"`
+				Thinking string          `json:"thinking"`
+				Input    json.RawMessage `json:"input"`
+			}
+			if json.Unmarshal(block.ContentBlock, &start) != nil {
+				native.invalid = true
+				continue
+			}
+			if start.Type == "tool_use" {
 				currentTool = &llm.ToolCall{
 					Index: block.Index,
-					ID:    block.ContentBlock.ID,
+					ID:    start.ID,
 					Type:  "function",
 					Function: llm.Function{
-						Name: block.ContentBlock.Name,
+						Name:      start.Name,
+						Arguments: string(start.Input),
 					},
 				}
+			}
+			content.WriteString(start.Text)
+			reasoning.WriteString(start.Thinking)
+			if (start.Text != "" || start.Thinking != "") && !yield(llm.StreamEvent{
+				Type:  llm.StreamEventTypeDelta,
+				Delta: llm.StreamDelta{Content: start.Text, ReasoningContent: start.Thinking},
+				Usage: usage,
+			}, nil) {
+				return
 			}
 
 		case "content_block_delta":
@@ -425,15 +495,18 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 					Type        string `json:"type"`
 					Text        string `json:"text"`
 					Thinking    string `json:"thinking"`
+					Signature   string `json:"signature"`
 					PartialJSON string `json:"partial_json"`
 				} `json:"delta"`
 			}
 			if err := json.Unmarshal(payloadLine, &block); err != nil {
+				native.invalid = true
 				continue
 			}
 
 			switch block.Delta.Type {
 			case "text_delta":
+				native.delta(block.Index, block.Delta.Type, block.Delta.Text)
 				content.WriteString(block.Delta.Text)
 				if !yield(llm.StreamEvent{
 					Type:  llm.StreamEventTypeDelta,
@@ -444,6 +517,7 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 				}
 
 			case "thinking_delta":
+				native.delta(block.Index, block.Delta.Type, block.Delta.Thinking)
 				reasoning.WriteString(block.Delta.Thinking)
 				if !yield(llm.StreamEvent{
 					Type:  llm.StreamEventTypeDelta,
@@ -453,7 +527,11 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 					return
 				}
 
+			case "signature_delta":
+				native.delta(block.Index, block.Delta.Type, block.Delta.Signature)
+
 			case "input_json_delta":
+				native.delta(block.Index, block.Delta.Type, block.Delta.PartialJSON)
 				if currentTool == nil {
 					continue
 				}
@@ -483,10 +561,14 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 				Index int `json:"index"`
 			}
 			if err := json.Unmarshal(payloadLine, &block); err != nil {
+				native.invalid = true
 				continue
 			}
+			native.stop(block.Index, toolArgs.String())
 			if currentTool != nil && block.Index == currentTool.Index {
-				currentTool.Function.Arguments = toolArgs.String()
+				if toolArgs.Len() > 0 {
+					currentTool.Function.Arguments = toolArgs.String()
+				}
 				toolCalls = append(toolCalls, *currentTool)
 				currentTool = nil
 				toolArgs.Reset()
@@ -506,12 +588,19 @@ func processStream(body io.Reader, yield func(llm.StreamEvent, error) bool) {
 			err := fmt.Errorf("anthropic stream error: %s", llm.APIErrorMessage(payloadLine))
 			yield(llm.StreamEvent{Type: llm.StreamEventTypeError, Err: err.Error()}, err)
 			return
+		case "message_stop":
+			stopped = true
+			break stream
 		}
 	}
 
 	// Anthropic sends no total; the buckets are disjoint, so they add up.
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens + usage.CachedTokens() + usage.CacheWriteTokens()
-	yield(llm.AssistantDone(content.String(), reasoning.String(), toolCalls, usage), nil)
+	done := llm.AssistantDone(content.String(), reasoning.String(), toolCalls, usage)
+	if native.hasThinking && !native.invalid && native.block == nil && stopped {
+		done.Final.Native = &llm.NativeState{Items: native.items}
+	}
+	yield(done, nil)
 }
 
 // Compact sends a single non-streaming request and returns the assistant
