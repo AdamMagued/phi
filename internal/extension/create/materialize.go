@@ -1,4 +1,4 @@
-package extension
+package create
 
 import (
 	"context"
@@ -72,6 +72,6 @@ func moduleRoot() (string, error) {
 	if !ok {
 		return "", errors.New("extension: runtime.Caller failed")
 	}
-	// internal/extension/testbuild.go → repo root
-	return filepath.Abs(filepath.Join(filepath.Dir(file), "../.."))
+	// internal/extension/create/materialize.go → repo root
+	return filepath.Abs(filepath.Join(filepath.Dir(file), "../../.."))
 }

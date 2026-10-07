@@ -5,13 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pulseaiclub/phi/internal/extension/core"
+	"github.com/pulseaiclub/phi/internal/extension/loader"
+
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/debuglog"
 )
 
 // Load discovers PXB extensions and spawns each subprocess.
-func Load(userDir, projectDir string) (*Runner, []Warning, error) {
-	found, warns, err := Discover(userDir, projectDir)
+func Load(userDir, projectDir string) (*Runner, []loader.Warning, error) {
+	found, warns, err := loader.Discover(userDir, projectDir)
 	if err != nil {
 		return nil, warns, err
 	}
@@ -24,9 +27,9 @@ func Load(userDir, projectDir string) (*Runner, []Warning, error) {
 
 	r := &Runner{}
 	for _, d := range found {
-		proc, err := StartProc(context.Background(), d.Manifest, d.Path, logDir, cwd, "")
+		proc, err := core.StartProc(context.Background(), d.Manifest, d.Path, logDir, cwd, "")
 		if err != nil {
-			warns = append(warns, Warning{Path: d.Path, Message: err.Error()})
+			warns = append(warns, loader.Warning{Path: d.Path, Message: err.Error()})
 			debuglog.Logf("extension: load %s: %v", d.Path, err)
 			continue
 		}

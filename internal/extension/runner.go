@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pulseaiclub/phi/internal/extension/core"
+	"github.com/pulseaiclub/phi/internal/extension/loader"
+
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/ext/go/pxb"
 	"github.com/pulseaiclub/phi/internal/debuglog"
@@ -23,9 +26,9 @@ const maxContextBytes = 4 * 1024
 type Runner struct {
 	mu      sync.Mutex
 	apis    []*ext.API
-	procs   []*Proc
-	loaded  []Discovered
-	warns   []Warning
+	procs   []*core.Proc
+	loaded  []loader.Discovered
+	warns   []loader.Warning
 	ui      ext.UI
 	cwd     string
 	session string
@@ -42,7 +45,7 @@ func (r *Runner) Close() {
 		return
 	}
 	r.mu.Lock()
-	procs := append([]*Proc(nil), r.procs...)
+	procs := append([]*core.Proc(nil), r.procs...)
 	r.procs = nil
 	r.mu.Unlock()
 	for _, p := range procs {
@@ -51,25 +54,25 @@ func (r *Runner) Close() {
 }
 
 // Loaded returns discovered extensions that were loaded.
-func (r *Runner) Loaded() []Discovered {
+func (r *Runner) Loaded() []loader.Discovered {
 	if r == nil {
 		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]Discovered, len(r.loaded))
+	out := make([]loader.Discovered, len(r.loaded))
 	copy(out, r.loaded)
 	return out
 }
 
 // Warnings returns non-fatal load issues.
-func (r *Runner) Warnings() []Warning {
+func (r *Runner) Warnings() []loader.Warning {
 	if r == nil {
 		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]Warning, len(r.warns))
+	out := make([]loader.Warning, len(r.warns))
 	copy(out, r.warns)
 	return out
 }
@@ -111,33 +114,42 @@ func (r *Runner) Bind(opts ext.HostOpts) {
 		api.BindHost(opts)
 	}
 	// Forward spontaneous Notify frames / host requests from extension processes.
-	ui := opts.UI
-	sendUser := opts.SendUserMessage
 	for _, p := range r.procs {
-		proc := p
-		p.onNotify = func(n pxb.NotifyMsg) {
-			if ui == nil {
-				return
-			}
-			if n.Message != "" {
-				kind := n.Level
-				if kind == "" {
-					kind = "info"
-				}
-				ui.Notify(n.Message, kind)
-			}
-			if n.StatusSet {
-				ui.SetStatus("", n.Status)
-			}
-		}
-		p.onHostRequest = func(id uint32, hasID bool, req pxb.HostRequest) {
-			r.handleHostRequest(proc, id, hasID, req, ui, sendUser)
-		}
+		p.SetHostSink(procSink{runner: r, proc: p, ui: opts.UI, sendUser: opts.SendUserMessage})
 	}
 }
 
+// procSink is the sink core.Proc uses to hand spontaneous frames back to the
+// host: notifications turn into UI effects, host requests get answered.
+type procSink struct {
+	runner   *Runner
+	proc     *core.Proc
+	ui       ext.UI
+	sendUser func(string)
+}
+
+func (s procSink) Notify(n pxb.NotifyMsg) {
+	if s.ui == nil {
+		return
+	}
+	if n.Message != "" {
+		kind := n.Level
+		if kind == "" {
+			kind = "info"
+		}
+		s.ui.Notify(n.Message, kind)
+	}
+	if n.StatusSet {
+		s.ui.SetStatus("", n.Status)
+	}
+}
+
+func (s procSink) HostRequest(id uint32, hasID bool, req pxb.HostRequest) {
+	s.runner.handleHostRequest(s.proc, id, hasID, req, s.ui, s.sendUser)
+}
+
 func (*Runner) handleHostRequest(
-	p *Proc,
+	p *core.Proc,
 	id uint32,
 	hasID bool,
 	req pxb.HostRequest,
@@ -354,15 +366,12 @@ func (r *Runner) RunCommand(name, args string) (CommandOutcome, error) {
 		return CommandOutcome{}, errors.New("extension: no runner")
 	}
 	r.mu.Lock()
-	procs := append([]*Proc(nil), r.procs...)
+	procs := append([]*core.Proc(nil), r.procs...)
 	apis := append([]*ext.API(nil), r.apis...)
 	r.mu.Unlock()
 
 	for _, p := range procs {
-		for _, c := range p.cmds {
-			if c.Name != name {
-				continue
-			}
+		if p.HasCommand(name) {
 			resp, err := p.CallCommand(context.Background(), name, args)
 			if err != nil {
 				return CommandOutcome{}, err

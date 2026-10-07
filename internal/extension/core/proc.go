@@ -1,4 +1,4 @@
-package extension
+package core
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pulseaiclub/phi/internal/extension/loader"
 
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/ext/go/pxb"
@@ -28,7 +30,7 @@ const (
 
 // Proc is one extension subprocess speaking PXB over stdin/stdout.
 type Proc struct {
-	Manifest Manifest
+	Manifest loader.Manifest
 	Dir      string
 	LogPath  string
 
@@ -52,8 +54,21 @@ type Proc struct {
 	closed   atomic.Bool
 	stopOnce sync.Once
 
-	onNotify      func(pxb.NotifyMsg)
-	onHostRequest func(id uint32, hasID bool, req pxb.HostRequest)
+	sink HostSink
+}
+
+// HostSink receives frames the extension sends on its own initiative instead of
+// as an RPC reply: notifications and host requests (confirm, send_user_message).
+// Without a sink those frames are dropped.
+type HostSink interface {
+	Notify(pxb.NotifyMsg)
+	HostRequest(id uint32, hasID bool, req pxb.HostRequest)
+}
+
+// SetHostSink installs the sink for spontaneous frames. Set it before the
+// process is driven concurrently; later calls are not synchronized with readLoop.
+func (p *Proc) SetHostSink(sink HostSink) {
+	p.sink = sink
 }
 
 type frameResult struct {
@@ -62,7 +77,7 @@ type frameResult struct {
 }
 
 // StartProc launches manifest.Exec and completes the PXB handshake.
-func StartProc(ctx context.Context, m Manifest, dir, logDir, cwd, sessionID string) (*Proc, error) {
+func StartProc(ctx context.Context, m loader.Manifest, dir, logDir, cwd, sessionID string) (*Proc, error) {
 	if m.Exec == "" {
 		return nil, errors.New("extension: empty exec")
 	}
@@ -258,8 +273,8 @@ func (p *Proc) readLoop() {
 				debuglog.Logf("extension %q: notify decode: %v", p.Manifest.Name, err)
 				continue
 			}
-			if p.onNotify != nil {
-				p.onNotify(n)
+			if p.sink != nil {
+				p.sink.Notify(n)
 			}
 		case pxb.TypeHostRequest:
 			req, err := pxb.DecodeHostRequest(f.Body)
@@ -267,8 +282,8 @@ func (p *Proc) readLoop() {
 				debuglog.Logf("extension %q: host request decode: %v", p.Manifest.Name, err)
 				continue
 			}
-			if p.onHostRequest != nil {
-				p.onHostRequest(f.ID, f.Flags&pxb.FlagHasID != 0, req)
+			if p.sink != nil {
+				p.sink.HostRequest(f.ID, f.Flags&pxb.FlagHasID != 0, req)
 			}
 		case pxb.TypeShutdownAck:
 			return
@@ -436,8 +451,8 @@ func (p *Proc) CallCommand(ctx context.Context, name, args string) (pxb.CommandR
 	if err != nil {
 		return pxb.CommandResponse{}, err
 	}
-	if resp.Notify != "" && p.onNotify != nil {
-		p.onNotify(pxb.NotifyMsg{Level: "info", Message: resp.Notify})
+	if resp.Notify != "" && p.sink != nil {
+		p.sink.Notify(pxb.NotifyMsg{Level: "info", Message: resp.Notify})
 	}
 	return resp, nil
 }
@@ -612,6 +627,19 @@ func (p *Proc) Commands() []pxb.RegisterCommand {
 	out := make([]pxb.RegisterCommand, len(p.cmds))
 	copy(out, p.cmds)
 	return out
+}
+
+// HasCommand reports whether the extension registered a command with this name.
+func (p *Proc) HasCommand(name string) bool {
+	if p == nil {
+		return false
+	}
+	for _, c := range p.cmds {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // BuildAPI installs shim handlers onto api from this process's registrations.

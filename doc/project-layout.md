@@ -30,7 +30,7 @@
 | `internal/util/`         | Shared helpers (diff, retry, SSE, file search, …) |
 | `internal/util/diffreview/` | Unified-diff parse/render, in-memory review notes, git load |
 | `internal/permission/`   | Permission policy and ask gate                 |
-| `internal/extension/`    | PXB extension discover/spawn/runner            |
+| `internal/extension/`    | PXB extension host: runner + layers (`core`/`loader`/`install`/`create`) |
 | `internal/mcp/`          | MCP config + stdio client + pool (meta-tool route) |
 
 ## Design docs
