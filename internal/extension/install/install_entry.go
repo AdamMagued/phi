@@ -1,15 +1,17 @@
-package extension
+package install
 
 import (
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/pulseaiclub/phi/internal/extension/loader"
 )
 
 // findInstallEntry verifies a cloned plugin looks like a PXB extension.
 func findInstallEntry(dir string) (string, error) {
-	m, err := ReadManifest(dir)
+	m, err := loader.ReadManifest(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", errors.New(

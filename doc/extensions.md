@@ -405,7 +405,34 @@ them under management.
 | `ext/go/phi` | Go author SDK (`ExtensionAPI.Run`) |
 | `ext/rust` (crate `phi-ext`) | Rust author SDK (`pxb` + `phi` modules; deps: serde/serde_json + tokio `rt`) |
 | `ext/ts` (npm `@pulseaiclub/phi-ext`) | TypeScript author SDK (`pxb` + `phi` modules; zero runtime deps, Node ≥ 20) |
-| `internal/extension` | Discover, spawn, Runner shims |
+| `internal/extension` | Host side: discover, spawn, Runner shims (layers below) |
+
+### Host layers
+
+`internal/extension` is layered, and dependencies point down only.
+
+| Path | Layer | Owns |
+|------|-------|------|
+| `internal/extension` | host surface | `Runner` (aggregates processes into phi tools / slash commands / event intercepts), `Load`, `BusUI` |
+| `internal/extension/core` | kernel | one `Proc` per extension: PXB framing, handshake, RPC + timeouts, teardown |
+| `internal/extension/loader` | config | `phi.yaml` (`Manifest`) and directory discovery |
+| `internal/extension/install` | distribution | the extensions dir as a store: install / update / remove / list + install metadata |
+| `internal/extension/create` | scaffolding | `Materialize` (test and example extensions) |
+
+Imports point down only: `extension → core → loader`, `install → loader`, `create` on its own.
+`agent` and `tui` import just the top package; `cmd` is the sole importer of `install`.
+
+The layering follows [cordis](https://github.com/cordiverse/cordis) `packages/*`,
+so its mechanisms can be lifted one at a time:
+
+| cordis | here |
+|--------|------|
+| `core` (Context / Fiber / Service / Registry) | `core` — a `Proc` is the Fiber: started → registered → closed |
+| `loader` (config entry → plugin runtime) | `loader` (entries) + `Load` (entry → running process) |
+| `include` (durable entry set, add/remove) | `install` — `.phi-install.json` is the entry journal |
+| `create` | `create` |
+| `hmr` (swap a live plugin) | not yet — reload swaps the whole `Runner` (`Controller.swapExtensionRunner`) |
+| `group` (grouped entries, per-group config) | not yet — user/project dirs are the only grouping (`loader.Source*`) |
 
 ## Migration from yaegi
 

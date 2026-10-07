@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pulseaiclub/phi/internal/extension/loader"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pulseaiclub/phi/internal/components/palette"
-	"github.com/pulseaiclub/phi/internal/extension"
 	"github.com/pulseaiclub/phi/internal/tui/controller"
 )
 
@@ -121,7 +122,7 @@ func TestExtensionListEntries(t *testing.T) {
 	assert.True(t, entries[0].Disabled)
 	assert.Contains(t, entries[0].Verb, "No extensions")
 
-	entries = ExtensionListEntries(nil, []extension.Warning{{Path: "x", Message: "bad"}}, nil)
+	entries = ExtensionListEntries(nil, []loader.Warning{{Path: "x", Message: "bad"}}, nil)
 	require.Len(t, entries, 1)
 	assert.Contains(t, entries[0].Verb, "warn:")
 }

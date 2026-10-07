@@ -1,4 +1,4 @@
-package extension
+package install
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/pulseaiclub/phi/internal/extension/loader"
 
 	"github.com/pulseaiclub/phi/internal/util/githubrelease"
 )
@@ -162,7 +164,7 @@ func extractArchive(ctx context.Context, archive, format, dst string) error {
 // unwrapExtractRoot returns the directory that contains phi.yaml.
 // If the archive has a single top-level folder and no root manifest, use that folder.
 func unwrapExtractRoot(dir string) (string, error) {
-	if _, err := ReadManifest(dir); err == nil {
+	if _, err := loader.ReadManifest(dir); err == nil {
 		return dir, nil
 	}
 	entries, err := os.ReadDir(dir)
@@ -189,7 +191,7 @@ func unwrapExtractRoot(dir string) (string, error) {
 	if sub == "" {
 		return dir, nil
 	}
-	if _, err := ReadManifest(sub); err != nil {
+	if _, err := loader.ReadManifest(sub); err != nil {
 		return dir, nil
 	}
 	return sub, nil

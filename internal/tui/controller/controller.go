@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pulseaiclub/phi/internal/extension/loader"
+
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/internal/agent"
 	"github.com/pulseaiclub/phi/internal/components/toast"
@@ -221,7 +223,7 @@ func (c *EngineController) Extensions() *extension.Runner {
 	return c.extRunner.Load()
 }
 
-func (c *EngineController) ReloadExtensions() (loaded int, warns []extension.Warning, err error) {
+func (c *EngineController) ReloadExtensions() (loaded int, warns []loader.Warning, err error) {
 	r, warns, err := extension.Load(c.proj.Global().ExtensionsDir(), c.proj.ExtensionsDir())
 	if err != nil {
 		return 0, warns, err
@@ -244,8 +246,8 @@ func (c *EngineController) swapExtensionRunner(r *extension.Runner) {
 	c.publish(ExtSessionEffectsMsg{Status: "", StatusSet: true})
 }
 
-func (c *EngineController) ListExtensions() ([]extension.Discovered, []extension.Warning, error) {
-	return extension.Discover(c.proj.Global().ExtensionsDir(), c.proj.ExtensionsDir())
+func (c *EngineController) ListExtensions() ([]loader.Discovered, []loader.Warning, error) {
+	return loader.Discover(c.proj.Global().ExtensionsDir(), c.proj.ExtensionsDir())
 }
 
 // loadExtensions discovers ~/.phi/extensions and <cwd>/.phi/extensions.
@@ -260,7 +262,7 @@ func loadExtensions(proj *project.Project) *extension.Runner {
 	return r
 }
 
-func logExtensionWarnings(warns []extension.Warning) {
+func logExtensionWarnings(warns []loader.Warning) {
 	for _, w := range warns {
 		debuglog.Logf("extension: %s", w.String())
 	}

@@ -1,4 +1,4 @@
-package extension
+package core
 
 import (
 	"context"
@@ -13,6 +13,24 @@ import (
 
 	"github.com/pulseaiclub/phi/ext/go/pxb"
 )
+
+// testSink adapts optional function fields to the HostSink the host installs.
+type testSink struct {
+	notify  func(pxb.NotifyMsg)
+	hostReq func(id uint32, hasID bool, req pxb.HostRequest)
+}
+
+func (s testSink) Notify(n pxb.NotifyMsg) {
+	if s.notify != nil {
+		s.notify(n)
+	}
+}
+
+func (s testSink) HostRequest(id uint32, hasID bool, req pxb.HostRequest) {
+	if s.hostReq != nil {
+		s.hostReq(id, hasID, req)
+	}
+}
 
 func TestHostFirstCommandConfirmCollision(t *testing.T) {
 	input, childInput := io.Pipe()
@@ -29,12 +47,12 @@ func TestHostFirstCommandConfirmCollision(t *testing.T) {
 		pending: make(map[uint32]chan frameResult),
 	}
 	confirmed := make(chan uint32, 1)
-	p.onHostRequest = func(id uint32, hasID bool, req pxb.HostRequest) {
+	p.SetHostSink(testSink{hostReq: func(id uint32, hasID bool, req pxb.HostRequest) {
 		if hasID && req.Method == "confirm" {
 			confirmed <- id
 		}
 		p.ReplyHost(id, pxb.HostResult{OK: true})
-	}
+	}})
 	go p.readLoop()
 	childDone := make(chan error, 1)
 	go func() {
@@ -119,7 +137,7 @@ func hostTestProc(t *testing.T, mode string) (*Proc, <-chan struct{}) {
 		pending: make(map[uint32]chan frameResult),
 	}
 	ready := make(chan struct{})
-	p.onNotify = func(pxb.NotifyMsg) { close(ready) }
+	p.SetHostSink(testSink{notify: func(pxb.NotifyMsg) { close(ready) }})
 	go p.readLoop()
 	t.Cleanup(func() { p.terminate() })
 	return p, ready

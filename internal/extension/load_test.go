@@ -2,9 +2,11 @@ package extension_test
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/pulseaiclub/phi/internal/extension/core"
+	"github.com/pulseaiclub/phi/internal/extension/loader"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,50 +14,8 @@ import (
 	ext "github.com/pulseaiclub/phi/ext/go"
 	"github.com/pulseaiclub/phi/ext/go/pxb"
 	"github.com/pulseaiclub/phi/internal/extension"
+	"github.com/pulseaiclub/phi/internal/extension/create"
 )
-
-func TestDiscoverManifest(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, "hello")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "phi.yaml"), []byte("name: hello\nexec: ./hello\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "hello"), []byte("#!/bin/true\n"), 0o755))
-
-	found, warns, err := extension.Discover(root, "")
-	require.NoError(t, err)
-	assert.Empty(t, warns)
-	require.Len(t, found, 1)
-	assert.Equal(t, "hello", found[0].ID)
-}
-
-func TestDiscoverFollowsSymlinkDir(t *testing.T) {
-	root := t.TempDir()
-	real := filepath.Join(root, "real-hello")
-	require.NoError(t, os.MkdirAll(real, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(real, "phi.yaml"), []byte("name: hello\nexec: ./hello\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(real, "hello"), []byte("#!/bin/true\n"), 0o755))
-
-	extRoot := filepath.Join(root, "extensions")
-	require.NoError(t, os.MkdirAll(extRoot, 0o755))
-	require.NoError(t, os.Symlink(real, filepath.Join(extRoot, "hello")))
-
-	found, warns, err := extension.Discover(extRoot, "")
-	require.NoError(t, err)
-	assert.Empty(t, warns)
-	require.Len(t, found, 1)
-	assert.Equal(t, "hello", found[0].ID)
-}
-
-func TestExtensionsDisabled(t *testing.T) {
-	t.Setenv(extension.EnvExtensions, "off")
-	root := t.TempDir()
-	dir := filepath.Join(root, "hello")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "phi.yaml"), []byte("name: hello\nexec: ./x\n"), 0o644))
-	found, _, err := extension.Discover(root, "")
-	require.NoError(t, err)
-	assert.Empty(t, found)
-}
 
 func TestLoadAndPreToolBlock(t *testing.T) {
 	root := t.TempDir()
@@ -88,7 +48,7 @@ func main() {
 	_ = m.Run()
 }
 `
-	require.NoError(t, extension.Materialize(t.Context(), extDir, "guard", "0.0.1", src))
+	require.NoError(t, create.Materialize(t.Context(), extDir, "guard", "0.0.1", src))
 
 	r, warns, err := extension.Load(root, "")
 	require.NoError(t, err)
@@ -149,7 +109,7 @@ func main() {
 	_ = m.Run()
 }
 `
-	require.NoError(t, extension.Materialize(t.Context(), extDir, "greet", "0.0.1", src))
+	require.NoError(t, create.Materialize(t.Context(), extDir, "greet", "0.0.1", src))
 	r, warns, err := extension.Load(root, "")
 	require.NoError(t, err)
 	require.Empty(t, warns, "%v", warns)
@@ -192,10 +152,10 @@ func main() {
 	_ = m.Run()
 }
 `
-	require.NoError(t, extension.Materialize(t.Context(), extDir, "slow", "0.0.1", src))
-	m, err := extension.ReadManifest(extDir)
+	require.NoError(t, create.Materialize(t.Context(), extDir, "slow", "0.0.1", src))
+	m, err := loader.ReadManifest(extDir)
 	require.NoError(t, err)
-	proc, err := extension.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
+	proc, err := core.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = proc.Close() })
 	require.Len(t, proc.Tools(), 1)
@@ -232,10 +192,10 @@ func main() {
 	_ = m.Run()
 }
 `
-	require.NoError(t, extension.Materialize(t.Context(), extDir, "detail", "0.0.1", src))
-	m, err := extension.ReadManifest(extDir)
+	require.NoError(t, create.Materialize(t.Context(), extDir, "detail", "0.0.1", src))
+	m, err := loader.ReadManifest(extDir)
 	require.NoError(t, err)
-	proc, err := extension.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
+	proc, err := core.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = proc.Close() })
 	require.Len(t, proc.Tools(), 1)
@@ -273,10 +233,10 @@ func main() {
 	_ = m.Run()
 }
 `
-	require.NoError(t, extension.Materialize(t.Context(), extDir, "readable", "0.0.1", src))
-	m, err := extension.ReadManifest(extDir)
+	require.NoError(t, create.Materialize(t.Context(), extDir, "readable", "0.0.1", src))
+	m, err := loader.ReadManifest(extDir)
 	require.NoError(t, err)
-	proc, err := extension.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
+	proc, err := core.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = proc.Close() })
 	require.Len(t, proc.Tools(), 1)
@@ -311,10 +271,10 @@ func main() {
 	_ = m.Run()
 }
 `
-	require.NoError(t, extension.Materialize(t.Context(), extDir, "plan", "0.0.1", src))
-	m, err := extension.ReadManifest(extDir)
+	require.NoError(t, create.Materialize(t.Context(), extDir, "plan", "0.0.1", src))
+	m, err := loader.ReadManifest(extDir)
 	require.NoError(t, err)
-	proc, err := extension.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
+	proc, err := core.StartProc(t.Context(), m, extDir, t.TempDir(), root, "")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = proc.Close() })
 	cmds := proc.Commands()

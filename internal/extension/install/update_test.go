@@ -1,4 +1,4 @@
-package extension
+package install
 
 import (
 	"archive/tar"
