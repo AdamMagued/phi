@@ -73,6 +73,28 @@ func TestSubmitter_IsBusy(t *testing.T) {
 	assert.False(t, sub.IsBusy())
 }
 
+// Esc has to cancel a request that is in flight but has not streamed a token
+// yet: the transcript is empty there, so a snapshot-only check reads "idle".
+func TestSubmitter_IsBusy_requestInFlight(t *testing.T) {
+	th := components.DefaultTheme()
+	spin := status.NewSpinner(th.ToolName)
+	activity := controller.NewActivityHandler(spin)
+	sub := newTestSubmitter(t, transcript.NewTranscriptPane(th, spin, "Phi test"), activity, nil, nil)
+
+	for _, a := range []controller.Activity{
+		controller.ActivitySubmitting,
+		controller.ActivityWaiting,
+		controller.ActivityStreaming,
+		controller.ActivityRetrying,
+	} {
+		activity.Apply(a)
+		assert.True(t, sub.IsBusy(), "activity %v must stay cancelable", a)
+	}
+
+	activity.Apply(controller.ActivityIdle)
+	assert.False(t, sub.IsBusy())
+}
+
 func TestSubmitter_StreamActive_activity(t *testing.T) {
 	th := components.DefaultTheme()
 	spin := status.NewSpinner(th.ToolName)

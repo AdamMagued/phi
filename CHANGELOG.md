@@ -22,6 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Preserve Anthropic thinking across tool calls and resumed sessions ([#267](https://github.com/pulseaiclub/phi/pull/267)).
 
 - `ls` no longer prints a truncation notice when a directory holds exactly `limit` files; the notice only appears when the walk actually stops early ([#285](https://github.com/pulseaiclub/phi/issues/285))
+- `Esc` cancels a submitted turn while the request is still in flight, not only
+  once the first token has streamed into the transcript.
 
 ### Security
 

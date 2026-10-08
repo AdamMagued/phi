@@ -241,6 +241,45 @@ func TestShowBranchListDrawsRowsAndRoutesAccept(t *testing.T) {
 	assert.Equal(t, []string{"main"}, accepted)
 }
 
+// busySubmitter stands in for the submit side in Esc tests: only the busy flag
+// matters for the cancel gate.
+type busySubmitter struct{ busy bool }
+
+func (busySubmitter) RunningBash() bool     { return false }
+func (s busySubmitter) IsBusy() bool        { return s.busy }
+func (busySubmitter) SyncBashBorder(string) {}
+
+// Esc has to cancel a turn whose request is still in flight — the stream has
+// not produced a token yet, so the transcript looks idle.
+func TestEscapeCancelsRequestInFlight(t *testing.T) {
+	c := NewComposerPane(components.DefaultTheme(), "m", "/tmp")
+	bus := controller.NewBus(nil)
+	c.bus = bus
+	c.submitter = busySubmitter{busy: true}
+
+	ctx := &components.EventContext{}
+	require.True(t, c.handleEscape(ctx))
+	assert.True(t, ctx.Consume)
+
+	cancelled := false
+	for _, m := range bus.Drain() {
+		if _, ok := m.(controller.CancelStreamMsg); ok {
+			cancelled = true
+		}
+	}
+	assert.True(t, cancelled, "Esc on a turn in flight must publish CancelStreamMsg")
+}
+
+// Nothing in flight: Esc stays unclaimed so it can fall through to the
+// transcript and its selection handling.
+func TestEscapeUnclaimedWhenIdle(t *testing.T) {
+	c := NewComposerPane(components.DefaultTheme(), "m", "/tmp")
+	c.bus = controller.NewBus(nil)
+	c.submitter = busySubmitter{}
+
+	assert.False(t, c.handleEscape(&components.EventContext{}))
+}
+
 func TestListAcceptHandlerIsNotSharedBetweenDomains(t *testing.T) {
 	c := NewComposerPane(components.DefaultTheme(), "m", "/repo")
 	var sessions, branches []string
