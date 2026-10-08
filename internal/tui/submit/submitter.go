@@ -209,9 +209,10 @@ func (s *Submitter) RunningBash() bool {
 	return s.bash.Running()
 }
 
-// IsBusy reports agent stream or local bash activity.
+// IsBusy reports agent stream, the pre-token window of a request in flight, or
+// local bash activity.
 func (s *Submitter) IsBusy() bool {
-	return s.transcript.IsStreaming() || s.bash.Running()
+	return s.transcript.IsStreaming() || s.bash.Running() || s.activity.TurnPending()
 }
 
 // StreamActive reports whether user input should be blocked for stream/overlays.

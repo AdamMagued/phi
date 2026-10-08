@@ -106,6 +106,22 @@ func (h *ActivityHandler) ShowSpinner() bool {
 	return h.Current.showSpinner()
 }
 
+// TurnPending reports whether a request is in flight with nothing streamed yet:
+// the window between submit and the first token. The transcript has no assistant
+// output there, so anything gating on the snapshot alone would miss an Esc that
+// arrived while the provider was still thinking.
+func (h *ActivityHandler) TurnPending() bool {
+	if h == nil {
+		return false
+	}
+	switch h.Current {
+	case ActivitySubmitting, ActivityWaiting, ActivityStreaming, ActivityRetrying:
+		return true
+	default:
+		return false
+	}
+}
+
 // Label returns the status-slot text for the current activity and session snapshot.
 func (h *ActivityHandler) Label(snap session.Snapshot) string {
 	if h == nil {
