@@ -10,6 +10,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.28.4] - 2026-10-10
+
+### Added
+
 - Debug toggle in the command palette (settings → debug): turn debug logging on
   or off at runtime without restarting; the toast names the log file.
 
@@ -31,7 +45,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Report Anthropic stream errors instead of treating partial responses as completed messages.
 - Preserve Anthropic thinking across tool calls and resumed sessions ([#267](https://github.com/pulseaiclub/phi/pull/267)).
-
 - `ls` no longer prints a truncation notice when a directory holds exactly `limit` files; the notice only appears when the walk actually stops early ([#285](https://github.com/pulseaiclub/phi/issues/285))
 - `Esc` cancels a submitted turn while the request is still in flight, not only
   once the first token has streamed into the transcript.
@@ -946,7 +959,8 @@ Earlier releases are available from GitHub tags only.
 
 <!-- Released section ended -->
 
-[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.3...HEAD
+[Unreleased]: https://github.com/pulseaiclub/phi/compare/v0.28.4...HEAD
+[0.28.4]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.4
 [0.28.3]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.3
 [0.28.2]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.2
 [0.28.1]: https://github.com/pulseaiclub/phi/releases/tag/v0.28.1
