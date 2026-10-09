@@ -177,10 +177,16 @@ func (c *EngineController) SetAllowAll(v bool) {
 	c.allowAll.Store(v)
 }
 
+// AllowAll reports whether the permission gate is in bypass mode.
+func (c *EngineController) AllowAll() bool { return c.allowAll.Load() }
+
 func (c *EngineController) SetAgentsEnabled(v bool) {
 	c.agentsEnabled.Store(v)
 	c.engine.SetJobs(c.engineJobs())
 }
+
+// AgentsEnabled reports whether sub-agent (agent_*) tools are registered.
+func (c *EngineController) AgentsEnabled() bool { return c.agentsEnabled.Load() }
 
 func (c *EngineController) modelForRole(role job.Role) llm.ModelConfig {
 	role = job.NormalizeRole(string(role))
@@ -191,6 +197,16 @@ func (c *EngineController) modelForRole(role job.Role) llm.ModelConfig {
 		debuglog.Logf("agents: unknown role model %q for %s; using parent", name, role)
 	}
 	return c.modelCfg
+}
+
+// RoleModel returns the session-only model name for a sub-agent role.
+// Empty means the role inherits the parent model.
+func (c *EngineController) RoleModel(role string) string {
+	r, err := job.ParseRole(role)
+	if err != nil {
+		return ""
+	}
+	return c.roleModels[r]
 }
 
 // SetRoleModel sets the session-only model name for a sub-agent role.

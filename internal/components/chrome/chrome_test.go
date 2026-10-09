@@ -32,6 +32,11 @@ func TestToolIconRejectedUsesDestructive(t *testing.T) {
 	assert.Equal(t, th.Muted.Fg, st.Fg)
 }
 
+func TestCurrentMarker(t *testing.T) {
+	assert.Equal(t, chrome.DotOn+" ", chrome.CurrentMarker(true))
+	assert.Equal(t, "  ", chrome.CurrentMarker(false))
+}
+
 func TestExpandArrow(t *testing.T) {
 	assert.Equal(t, chrome.Expand, chrome.ExpandArrow(false))
 	assert.Equal(t, chrome.Collapse, chrome.ExpandArrow(true))

@@ -12,19 +12,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pulseaiclub/phi/internal/components/chrome"
 	"github.com/pulseaiclub/phi/internal/components/palette"
 	"github.com/pulseaiclub/phi/internal/tui/controller"
 )
 
 func TestThemeCommand_Submenu(t *testing.T) {
 	var got string
-	cmd := buildThemePalette(func(name string) { got = name })
+	cmd := buildThemePalette(func(name string) { got = name }, "Dark")
 	assert.Equal(t, "settings", cmd.Noun)
 	assert.Equal(t, "theme", cmd.Verb)
 	assert.Equal(t, "Select Theme", cmd.SubmenuTitle)
 	require.Len(t, cmd.Submenu, 4)
-	assert.Equal(t, "Dark (builtin)", cmd.Submenu[0].Verb)
-	assert.Equal(t, "Pink (builtin)", cmd.Submenu[2].Verb)
+	assert.Equal(t, chrome.CurrentMarker(true)+"Dark (builtin)", cmd.Submenu[0].Verb)
+	assert.Equal(t, chrome.CurrentMarker(false)+"Pink (builtin)", cmd.Submenu[2].Verb)
 
 	cmd.Submenu[2].Run()
 	assert.Equal(t, "Pink", got)
@@ -32,10 +33,12 @@ func TestThemeCommand_Submenu(t *testing.T) {
 
 func TestPermissionsCommand_Toggle(t *testing.T) {
 	var bypass *bool
-	cmd := buildPermissionsPalette(func(v bool) { bypass = &v })
+	cmd := buildPermissionsPalette(func(v bool) { bypass = &v }, true)
 	assert.Equal(t, "settings", cmd.Noun)
 	assert.Equal(t, "permissions", cmd.Verb)
 	require.Len(t, cmd.Submenu, 2)
+	assert.Equal(t, chrome.CurrentMarker(true)+"off — allow all (no prompts)", cmd.Submenu[0].Verb)
+	assert.Equal(t, chrome.CurrentMarker(false)+"on — ask before gated tools", cmd.Submenu[1].Verb)
 
 	cmd.Submenu[0].Run()
 	require.NotNil(t, bypass)
@@ -47,10 +50,12 @@ func TestPermissionsCommand_Toggle(t *testing.T) {
 
 func TestAgentsCommand_Toggle(t *testing.T) {
 	var enabled *bool
-	cmd := buildAgentsPalette(func(v bool) { enabled = &v }, nil, nil)
+	cmd := buildAgentsPalette(func(v bool) { enabled = &v }, nil, nil, false, nil)
 	assert.Equal(t, "settings", cmd.Noun)
 	assert.Equal(t, "agents", cmd.Verb)
 	require.Len(t, cmd.Submenu, 3)
+	assert.Equal(t, chrome.CurrentMarker(false)+"on — register agent_* tools", cmd.Submenu[0].Verb)
+	assert.Equal(t, chrome.CurrentMarker(true)+"off — no sub-agents (fewer tools)", cmd.Submenu[1].Verb)
 
 	cmd.Submenu[0].Run()
 	require.NotNil(t, enabled)
@@ -77,8 +82,10 @@ func TestDebugCommand_Toggle(t *testing.T) {
 	assert.Equal(t, "debug", cmd.Verb)
 	assert.Equal(t, "Debug Logging", cmd.SubmenuTitle)
 	require.Len(t, cmd.Submenu, 2)
-	assert.True(t, strings.HasPrefix(cmd.Submenu[0].Verb, "  "), "off is current, on must be unmarked")
-	assert.True(t, strings.HasPrefix(cmd.Submenu[1].Verb, "✓ "), "off entry must carry the current mark")
+	assert.True(t, strings.HasPrefix(cmd.Submenu[0].Verb, chrome.CurrentMarker(false)),
+		"off is current, so the on entry stays unmarked")
+	assert.True(t, strings.HasPrefix(cmd.Submenu[1].Verb, chrome.CurrentMarker(true)),
+		"off entry must carry the current mark")
 
 	cmd.Submenu[0].Run() // on
 	assert.Equal(t, []bool{true}, calls)
@@ -86,8 +93,8 @@ func TestDebugCommand_Toggle(t *testing.T) {
 	assert.Contains(t, drainToast(t, bus), debuglog.FilePath())
 
 	cmd = buildDebugPalette(s.setDebug)
-	assert.True(t, strings.HasPrefix(cmd.Submenu[0].Verb, "✓ "), "rebuilt menu must mark on")
-	assert.True(t, strings.HasPrefix(cmd.Submenu[1].Verb, "  "))
+	assert.True(t, strings.HasPrefix(cmd.Submenu[0].Verb, chrome.CurrentMarker(true)), "rebuilt menu must mark on")
+	assert.True(t, strings.HasPrefix(cmd.Submenu[1].Verb, chrome.CurrentMarker(false)))
 
 	cmd.Submenu[1].Run() // off
 	assert.False(t, debuglog.Enabled())
@@ -98,7 +105,7 @@ func TestAgentsCommand_RoleModels(t *testing.T) {
 	var gotRole, gotName string
 	cmd := buildAgentsPalette(nil, func(role, name string) {
 		gotRole, gotName = role, name
-	}, []string{"cheap", "strong"})
+	}, []string{"cheap", "strong"}, false, nil)
 	require.Len(t, cmd.Submenu, 3)
 	models := cmd.Submenu[2]
 	assert.Equal(t, "models", models.Verb)
@@ -109,7 +116,8 @@ func TestAgentsCommand_RoleModels(t *testing.T) {
 
 	explore := models.Submenu[0]
 	require.GreaterOrEqual(t, len(explore.Submenu), 3)
-	assert.Equal(t, "(inherit parent)", explore.Submenu[0].Verb)
+	assert.Equal(t, chrome.CurrentMarker(true)+"(inherit parent)", explore.Submenu[0].Verb)
+	assert.Equal(t, chrome.CurrentMarker(false)+"cheap", explore.Submenu[1].Verb)
 	explore.Submenu[0].Run()
 	assert.Equal(t, "explore", gotRole)
 	assert.Empty(t, gotName)
@@ -269,7 +277,7 @@ func TestCommandRegistry_BuildPalette(t *testing.T) {
 	r.Register(Command{
 		Name: "settings-model",
 		Build: func(Context) palette.PaletteCommand {
-			return buildModelPalette(func(name string) { model = name }, []string{"gpt"})
+			return buildModelPalette(func(name string) { model = name }, []string{"gpt"}, "gpt")
 		},
 	})
 	r.Register(Command{
