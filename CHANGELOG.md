@@ -10,6 +10,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Debug toggle in the command palette (settings → debug): turn debug logging on
+  or off at runtime without restarting; the toast names the log file.
+
 ### Changed
 
 ### Deprecated

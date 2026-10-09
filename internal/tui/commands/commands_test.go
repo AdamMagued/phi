@@ -3,8 +3,10 @@ package commands
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/pulseaiclub/phi/internal/debuglog"
 	"github.com/pulseaiclub/phi/internal/extension/loader"
 
 	"github.com/stretchr/testify/assert"
@@ -56,6 +58,40 @@ func TestAgentsCommand_Toggle(t *testing.T) {
 
 	cmd.Submenu[1].Run()
 	assert.False(t, *enabled)
+}
+
+func TestDebugCommand_Toggle(t *testing.T) {
+	prev := debuglog.Enabled()
+	t.Cleanup(func() { debuglog.SetEnabled(prev) })
+	debuglog.SetEnabled(false)
+
+	bus := controller.NewBus(nil)
+	s := &SettingsCommands{Bus: bus}
+	var calls []bool
+	cmd := buildDebugPalette(func(on bool) {
+		calls = append(calls, on)
+		s.setDebug(on)
+	})
+	assert.Equal(t, "settings-debug", cmd.ID)
+	assert.Equal(t, "settings", cmd.Noun)
+	assert.Equal(t, "debug", cmd.Verb)
+	assert.Equal(t, "Debug Logging", cmd.SubmenuTitle)
+	require.Len(t, cmd.Submenu, 2)
+	assert.True(t, strings.HasPrefix(cmd.Submenu[0].Verb, "  "), "off is current, on must be unmarked")
+	assert.True(t, strings.HasPrefix(cmd.Submenu[1].Verb, "✓ "), "off entry must carry the current mark")
+
+	cmd.Submenu[0].Run() // on
+	assert.Equal(t, []bool{true}, calls)
+	assert.True(t, debuglog.Enabled())
+	assert.Contains(t, drainToast(t, bus), debuglog.FilePath())
+
+	cmd = buildDebugPalette(s.setDebug)
+	assert.True(t, strings.HasPrefix(cmd.Submenu[0].Verb, "✓ "), "rebuilt menu must mark on")
+	assert.True(t, strings.HasPrefix(cmd.Submenu[1].Verb, "  "))
+
+	cmd.Submenu[1].Run() // off
+	assert.False(t, debuglog.Enabled())
+	assert.Equal(t, "Debug logging: off", drainToast(t, bus))
 }
 
 func TestAgentsCommand_RoleModels(t *testing.T) {
