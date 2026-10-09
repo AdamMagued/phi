@@ -2,4 +2,5 @@
 //
 // Enable with:  PHI_DEBUG=1
 // Log file:     $PHI_DEBUG_FILE or "phi-debug.log" in cwd
+// Runtime:      palette → settings → debug (SetEnabled)
 package debuglog

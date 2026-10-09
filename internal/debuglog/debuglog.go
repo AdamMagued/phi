@@ -16,7 +16,8 @@ var (
 	checked bool
 )
 
-// Enabled reports whether debug logging is on (cached after first check).
+// Enabled reports whether debug logging is on. The initial value comes from
+// PHI_DEBUG; SetEnabled overrides it for the rest of the process.
 func Enabled() bool {
 	mu.Lock()
 	defer mu.Unlock()
@@ -27,14 +28,27 @@ func Enabled() bool {
 	return enabled
 }
 
+// SetEnabled turns debug logging on or off at runtime (palette debug toggle).
+func SetEnabled(on bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	checked = true
+	enabled = on
+}
+
+// FilePath returns the log file path used when logging is on.
+func FilePath() string {
+	if p := os.Getenv("PHI_DEBUG_FILE"); p != "" {
+		return p
+	}
+	return "phi-debug.log"
+}
+
 func openLocked() error {
 	if file != nil {
 		return nil
 	}
-	path := os.Getenv("PHI_DEBUG_FILE")
-	if path == "" {
-		path = "phi-debug.log"
-	}
+	path := FilePath()
 	//nolint:gosec // G703: path comes from PHI_DEBUG_FILE or a fixed default
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {

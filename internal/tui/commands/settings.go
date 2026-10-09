@@ -8,6 +8,7 @@ import (
 	"github.com/pulseaiclub/phi/internal/components"
 	"github.com/pulseaiclub/phi/internal/components/palette"
 	"github.com/pulseaiclub/phi/internal/components/toast"
+	"github.com/pulseaiclub/phi/internal/debuglog"
 	"github.com/pulseaiclub/phi/internal/llm"
 	"github.com/pulseaiclub/phi/internal/tui/controller"
 )
@@ -64,6 +65,12 @@ func (s *SettingsCommands) Register(r *CommandRegistry) {
 			return buildThinkPalette(s.Ctrl, s.setThinkLevel)
 		},
 	})
+	r.Register(Command{
+		Name: "settings-debug",
+		Build: func(_ Context) palette.PaletteCommand {
+			return buildDebugPalette(s.setDebug)
+		},
+	})
 }
 
 func (s *SettingsCommands) setModel(name string) {
@@ -116,6 +123,15 @@ func (s *SettingsCommands) setRoleModel(role, name string) {
 	publishToast(s.Bus, msg, toast.ToastSuccess, 2*time.Second)
 }
 
+func (s *SettingsCommands) setDebug(on bool) {
+	debuglog.SetEnabled(on)
+	msg := "Debug logging: off"
+	if on {
+		msg = "Debug logging: on → " + debuglog.FilePath()
+	}
+	publishToast(s.Bus, msg, toast.ToastSuccess, 3*time.Second)
+}
+
 func (s *SettingsCommands) setThinkLevel(level llm.ThinkMode) {
 	s.Ctrl.SetThinkLevel(level)
 	label := string(level)
@@ -160,6 +176,45 @@ func buildThinkPalette(ctrl *controller.EngineController, set func(llm.ThinkMode
 		Keywords:     []string{"thinking", "reasoning", "effort", "budget"},
 		SubmenuTitle: "Thinking Level",
 		Submenu:      cmds,
+	}
+}
+
+func buildDebugPalette(set func(bool)) palette.PaletteCommand {
+	current := debuglog.Enabled()
+	mark := func(on bool) string {
+		if on == current {
+			return "✓ "
+		}
+		return "  "
+	}
+	return palette.PaletteCommand{
+		ID:           "settings-debug",
+		Noun:         "settings",
+		Verb:         "debug",
+		Keywords:     []string{"debug", "log", "logging", "diagnostics", "troubleshoot", "trace"},
+		SubmenuTitle: "Debug Logging",
+		Submenu: []palette.PaletteCommand{
+			{
+				ID:       "debug-on",
+				Verb:     mark(true) + "on — write to " + debuglog.FilePath(),
+				Keywords: []string{"enable", "on", "start", "record"},
+				Run: func() {
+					if set != nil {
+						set(true)
+					}
+				},
+			},
+			{
+				ID:       "debug-off",
+				Verb:     mark(false) + "off — stop writing",
+				Keywords: []string{"disable", "off", "stop"},
+				Run: func() {
+					if set != nil {
+						set(false)
+					}
+				},
+			},
+		},
 	}
 }
 
