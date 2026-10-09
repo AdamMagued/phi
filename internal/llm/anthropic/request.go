@@ -27,7 +27,7 @@ type AnthropicRequest struct {
 	Stream    bool               `json:"stream"`
 	Tools     []anthropicTool    `json:"tools,omitempty"`
 	Thinking  *thinkingConfig    `json:"thinking,omitempty"`
-	native    *llm.NativeState
+	native    *llm.ProviderState
 }
 
 type anthropicMessage struct {

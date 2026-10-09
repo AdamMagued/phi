@@ -215,7 +215,7 @@ func (s *Session) BuildContext() []llm.Message {
 			msg := m.Message
 			if compactionID != "" {
 				// Retained messages were generated before the summary replaced their prefix.
-				msg.Native = nil
+				msg.ProviderState = nil
 			}
 			msgs = append(msgs, msg)
 		}
@@ -250,7 +250,7 @@ func (s *Session) AddAssistant(assistant llm.Message, usage llm.Usage) error {
 		Content:          assistant.Content,
 		ReasoningContent: assistant.ReasoningContent,
 		ToolCalls:        assistant.ToolCalls,
-		Native:           assistant.Native,
+		ProviderState:    assistant.ProviderState,
 		Usage:            usage,
 	})
 }
@@ -260,7 +260,7 @@ func (s *Session) AddFinalAssistant(final *llm.Message) error {
 	if final == nil {
 		return nil
 	}
-	if strings.TrimSpace(final.Content) == "" && len(final.ToolCalls) == 0 && final.Native == nil {
+	if strings.TrimSpace(final.Content) == "" && len(final.ToolCalls) == 0 && final.ProviderState == nil {
 		return nil
 	}
 	return s.AddAssistant(*final, final.Usage)
