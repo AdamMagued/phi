@@ -60,14 +60,14 @@ func TestSessionAnthropicContinuation(t *testing.T) {
 	}
 	<-requests
 	require.NotNil(t, final)
-	require.NotNil(t, final.Native)
-	require.Len(t, final.Native.Items, 4)
+	require.NotNil(t, final.ProviderState)
+	require.Len(t, final.ProviderState.Data.Items, 4)
 	require.NoError(t, sess.AddFinalAssistant(final))
 	resumed, err := NewSession(WithResumePath(sess.File()))
 	require.NoError(t, err)
 	history := resumed.BuildContext()
 	require.Len(t, history, 2)
-	assert.Equal(t, final.Native, history[1].Native)
+	assert.Equal(t, final.ProviderState, history[1].ProviderState)
 	assert.Equal(t, final.Content, history[1].Content)
 	assert.Equal(t, final.ToolCalls, history[1].ToolCalls)
 	require.NoError(t, resumed.Append(llm.Message{
@@ -88,7 +88,7 @@ func TestSessionAnthropicContinuation(t *testing.T) {
 	var items []json.RawMessage
 	require.NoError(t, json.Unmarshal(wire.Messages[1].Content, &items))
 	require.Len(t, items, 4)
-	for i, item := range final.Native.Items {
+	for i, item := range final.ProviderState.Data.Items {
 		assert.JSONEq(t, string(item), string(items[i]))
 	}
 	assert.Equal(t, "assistant", wire.Messages[1].Role)
@@ -104,24 +104,24 @@ func TestSessionNativeCompaction(t *testing.T) {
 	sess, err := NewSession(WithCwd(dir), WithSessionDir(dir), WithPersist(true))
 	require.NoError(t, err)
 	require.NoError(t, sess.AddUser("old"))
-	state := &llm.NativeState{API: llm.Anthropic, Items: []json.RawMessage{
+	state := &llm.ProviderState{Provider: llm.Anthropic, Data: llm.ProviderData{Items: []json.RawMessage{
 		json.RawMessage(`{"type":"thinking","thinking":"","signature":"signed"}`),
-	}}
-	require.NoError(t, sess.AddFinalAssistant(&llm.Message{Native: state}))
+	}}}
+	require.NoError(t, sess.AddFinalAssistant(&llm.Message{ProviderState: state}))
 	keep := sess.LastID()
 	require.NoError(t, sess.AppendCompaction(session.Compaction{
 		Summary: "summary", FirstKeptEntryID: keep,
 	}))
-	require.NoError(t, sess.AddFinalAssistant(&llm.Message{Native: state}))
+	require.NoError(t, sess.AddFinalAssistant(&llm.Message{ProviderState: state}))
 	for _, current := range []*Session{sess, mustResumeNativeSession(t, sess.File())} {
 		messages := current.BuildContext()
 		require.Len(t, messages, 3)
 		assert.Contains(t, messages[0].Content, "summary")
-		assert.Nil(t, messages[1].Native, "retained native state belongs to the replaced prefix")
-		assert.Equal(t, state, messages[2].Native, "new responses belong to the summary prefix")
+		assert.Nil(t, messages[1].ProviderState, "retained provider state belongs to the replaced prefix")
+		assert.Equal(t, state, messages[2].ProviderState, "new responses belong to the summary prefix")
 		assert.Equal(t, messages, current.BuildContext(), "cached projection must agree")
 		entries := current.PathEntries()
-		assert.Equal(t, state, entries[1].(session.SessionMessageEntry).Message.Native,
+		assert.Equal(t, state, entries[1].(session.SessionMessageEntry).Message.ProviderState,
 			"projection must leave persisted history intact")
 	}
 }

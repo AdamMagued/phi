@@ -94,7 +94,8 @@ const (
 	RoleTool      Role = "tool"
 )
 
-// ToolCall is a model-requested tool invocation.
+// ToolCall is a model-requested tool invocation. JSON tags support session
+// serialization; providers build their own wire representations.
 type ToolCall struct {
 	Index    int      `json:"index,omitempty"`
 	ID       string   `json:"id"`
@@ -113,34 +114,6 @@ type Function struct {
 type Image struct {
 	Data     string `json:"data"`     // base64-encoded image bytes
 	MimeType string `json:"mimeType"` // e.g. "image/png", "image/jpeg"
-}
-
-// Message is one chat turn (OpenAI-compatible shape, normalized across
-// providers).
-type Message struct {
-	Role             Role         `json:"role"`
-	Content          string       `json:"content"`
-	ReasoningContent string       `json:"reasoning_content,omitempty"`
-	ToolCalls        []ToolCall   `json:"tool_calls,omitempty"`
-	ToolCallID       string       `json:"tool_call_id,omitempty"`
-	Native           *NativeState `json:"native,omitempty"`
-	// Images attaches base64 images to a user message. Providers that do not
-	// support images fall back to the text content only.
-	Images []Image `json:"images,omitempty"`
-
-	// Usage tracks token consumption for the turn. Excluded from the API
-	// request body; used by the session manager for compaction decisions.
-	Usage Usage `json:"-"`
-}
-
-// NativeState carries opaque provider content needed for continuation. The
-// normalized fields remain the source for rendering and other providers.
-type NativeState struct {
-	API      RouterType        `json:"api"`
-	Model    string            `json:"model"`
-	Endpoint string            `json:"endpoint"`
-	Prefix   string            `json:"prefix"`
-	Items    []json.RawMessage `json:"items"`
 }
 
 // PromptTokensDetails holds breakdown details for prompt token usage
@@ -238,3 +211,50 @@ type FunctionParameters struct {
 	Properties Object   `json:"properties"`
 	Required   []string `json:"required,omitempty"`
 }
+
+// Message is the internal representation of one chat turn. It is provider-neutral
+// and persisted in session files. JSON tags support session serialization only;
+// providers build their wire formats from this structure, not from the tags.
+type Message struct {
+	Role             Role           `json:"role"`
+	Content          string         `json:"content"`
+	ReasoningContent string         `json:"reasoning_content,omitempty"`
+	ToolCalls        []ToolCall     `json:"tool_calls,omitempty"`
+	ToolCallID       string         `json:"tool_call_id,omitempty"`
+	Images           []Image        `json:"images,omitempty"`
+	ProviderState    *ProviderState `json:"provider_state,omitempty"`
+
+	// Usage tracks token consumption for the turn. Excluded from session
+	// serialization; SessionMessageEntry carries it separately.
+	Usage Usage `json:"-"`
+}
+
+// ProviderState carries opaque provider-specific data needed for continuation
+// (e.g., Anthropic's signed thinking blocks for extended context prompting).
+// The normalized fields (Content, ReasoningContent, ToolCalls) remain the
+// authoritative representation for rendering, other providers, and compaction.
+type ProviderState struct {
+	// Provider identifies which LLM API produced this state.
+	Provider RouterType `json:"provider"`
+	// Model is the model name that produced this state (e.g., "claude-3-5-sonnet").
+	Model string `json:"model"`
+	// Endpoint is a fingerprint of the base URL (hashed to avoid leaking credentials).
+	Endpoint string `json:"endpoint"`
+	// Data is the opaque provider-specific payload. For Anthropic, this holds
+	// the prefix hash and content blocks; other providers may use it differently
+	// or leave it nil.
+	Data ProviderData `json:"data,omitempty"`
+}
+
+// ProviderData is the opaque payload inside ProviderState.
+type ProviderData struct {
+	// Prefix is the SHA-256 hex digest of the request prefix (system + tools + messages)
+	// that the native blocks depend on. Used by Anthropic to validate cache coherence.
+	Prefix string `json:"prefix,omitempty"`
+	// Items holds the raw content blocks for providers that need them (e.g., Anthropic
+	// thinking blocks). Other providers leave this nil.
+	Items []RawJSON `json:"items,omitempty"`
+}
+
+// RawJSON is an alias for json.RawMessage to make the intent clearer.
+type RawJSON = json.RawMessage

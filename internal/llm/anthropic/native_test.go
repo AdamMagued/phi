@@ -36,10 +36,10 @@ func nativeResponse(t *testing.T, req AnthropicRequest) llm.Message {
 	require.NotEmpty(t, events)
 	done := events[len(events)-1]
 	require.Equal(t, llm.StreamEventTypeDone, done.Type)
-	require.NotNil(t, done.Final.Native)
+	require.NotNil(t, done.Final.ProviderState)
 	state := *req.native
-	state.Items = done.Final.Native.Items
-	done.Final.Native = &state
+	state.Data.Items = done.Final.ProviderState.Data.Items
+	done.Final.ProviderState = &state
 	return *done.Final
 }
 
@@ -49,7 +49,7 @@ func TestNativeContentOrder(t *testing.T) {
 	msg := nativeResponse(t, BuildRequest(cfg, "system", []llm.Message{user}, nil))
 	assert.Equal(t, " start\nnext", msg.ReasoningContent)
 	assert.Equal(t, "beforeafter", msg.Content)
-	require.Len(t, msg.Native.Items, 5)
+	require.Len(t, msg.ProviderState.Data.Items, 5)
 	for i, want := range []string{
 		`{"type":"thinking","thinking":" start\nnext","signature":"sig/opaque+=="}`,
 		`{"type":"text","text":"before"}`,
@@ -57,7 +57,7 @@ func TestNativeContentOrder(t *testing.T) {
 		`{"type":"redacted_thinking","data":"encrypted+==","extra":"keep"}`,
 		`{"type":"text","text":"after"}`,
 	} {
-		assert.JSONEq(t, want, string(msg.Native.Items[i]))
+		assert.JSONEq(t, want, string(msg.ProviderState.Data.Items[i]))
 	}
 	result := llm.Message{Role: llm.RoleTool, ToolCallID: msg.ToolCalls[0].ID, Content: "file"}
 	req := BuildRequest(cfg, "system", []llm.Message{user, msg, result}, nil)
@@ -65,8 +65,8 @@ func TestNativeContentOrder(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(body), `"tool_use_id":"toolu.native"`)
 	assert.Contains(t, string(body), `"signature":"sig/opaque+=="`)
-	assert.NotContains(t, string(body), `"native"`)
-	assert.Equal(t, msg.Native.Items, req.Messages[1].Content)
+	assert.NotContains(t, string(body), `"provider_state"`)
+	assert.Equal(t, msg.ProviderState.Data.Items, req.Messages[1].Content)
 }
 
 func TestNativePrefixFallback(t *testing.T) {
@@ -132,7 +132,7 @@ func TestNativePrefixFallback(t *testing.T) {
 				results := req.Messages[2].Content.([]anthropicContentBlock)
 				assert.Equal(t, blocks[1].ID, results[0].ToolUseID)
 			}
-			assert.Equal(t, "sig/opaque+==", nativeSignature(t, msg.Native.Items[0]))
+			assert.Equal(t, "sig/opaque+==", nativeSignature(t, msg.ProviderState.Data.Items[0]))
 		})
 	}
 }
@@ -157,7 +157,7 @@ func TestNativePrefixDoesNotLeaveGap(t *testing.T) {
 			llm.Message{Role: llm.RoleTool, ToolCallID: msg.ToolCalls[0].ID, Content: "ok"},
 		)
 	}
-	messages[3].Native = nil
+	messages[3].ProviderState = nil
 	req := BuildRequest(cfg, "", messages, nil)
 	body, err := json.Marshal(req)
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestIncompleteNativeFallsBack(t *testing.T) {
 			done := events[len(events)-1]
 			require.Equal(t, llm.StreamEventTypeDone, done.Type)
 			require.NotNil(t, done.Final)
-			assert.Nil(t, done.Final.Native)
+			assert.Nil(t, done.Final.ProviderState)
 			assert.Equal(t, "beforeafter", done.Final.Content)
 			assert.Equal(t, " start\nnext", done.Final.ReasoningContent)
 			require.Len(t, done.Final.ToolCalls, 1)
@@ -198,12 +198,12 @@ func TestNativeOnlyAndLegacyHistory(t *testing.T) {
 	cfg := llm.ModelConfig{Name: "claude", Think: llm.ThinkConfig{Enabled: true}}
 	user := llm.Message{Role: llm.RoleUser, Content: "think"}
 	state := *BuildRequest(cfg, "", []llm.Message{user}, nil).native
-	state.Items = []json.RawMessage{json.RawMessage(`{"type":"thinking","thinking":"","signature":"signed"}`)}
-	msg := llm.Message{Role: llm.RoleAssistant, Native: &state}
+	state.Data.Items = []json.RawMessage{json.RawMessage(`{"type":"thinking","thinking":"","signature":"signed"}`)}
+	msg := llm.Message{Role: llm.RoleAssistant, ProviderState: &state}
 	req := BuildRequest(cfg, "", []llm.Message{user, msg}, nil)
 	require.Len(t, req.Messages, 2)
-	assert.Equal(t, state.Items, req.Messages[1].Content)
-	msg.Native = nil
+	assert.Equal(t, state.Data.Items, req.Messages[1].Content)
+	msg.ProviderState = nil
 	msg.ReasoningContent = "legacy display text"
 	req = BuildRequest(cfg, "", []llm.Message{user, msg}, nil)
 	assert.Len(t, req.Messages, 1, "legacy thinking has no signed wire content")

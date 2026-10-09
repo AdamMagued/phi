@@ -134,12 +134,13 @@ func BuildRequest(
 
 		case llm.RoleAssistant:
 			msg := anthropicMessage{Role: "assistant"}
-			state := m.Native
-			if state != nil && len(state.Items) > 0 && state.API == llm.Anthropic &&
+			state := m.ProviderState
+			prefixSum := hex.EncodeToString(prefix.Sum(nil))
+			if state != nil && state.Provider == llm.Anthropic &&
 				state.Model == cfg.Name && state.Endpoint == endpoint && prefixValid &&
-				state.Prefix == hex.EncodeToString(prefix.Sum(nil)) && req.Thinking != nil {
-				items := make([]json.RawMessage, len(state.Items))
-				for j, item := range state.Items {
+				len(state.Data.Items) > 0 && state.Data.Prefix == prefixSum && req.Thinking != nil {
+				items := make([]json.RawMessage, len(state.Data.Items))
+				for j, item := range state.Data.Items {
 					items[j] = bytes.Clone(item)
 				}
 				msg.Content = items
@@ -194,8 +195,13 @@ func BuildRequest(
 		prefixValid = writePrefix(prefix, req.Messages[len(req.Messages)-1]) && prefixValid
 	}
 	if prefixValid {
-		req.native = &llm.NativeState{
-			API: llm.Anthropic, Model: cfg.Name, Endpoint: endpoint, Prefix: hex.EncodeToString(prefix.Sum(nil)),
+		req.native = &llm.ProviderState{
+			Provider: llm.Anthropic,
+			Model:    cfg.Name,
+			Endpoint: endpoint,
+			Data: llm.ProviderData{
+				Prefix: hex.EncodeToString(prefix.Sum(nil)),
+			},
 		}
 	}
 
@@ -375,13 +381,13 @@ func Stream(
 		}
 
 		processStream(httpResp.Body, func(ev llm.StreamEvent, err error) bool {
-			if ev.Final != nil && ev.Final.Native != nil {
+			if ev.Final != nil && ev.Final.ProviderState != nil {
 				if req.native == nil {
-					ev.Final.Native = nil
+					ev.Final.ProviderState = nil
 				} else {
 					state := *req.native
-					state.Items = ev.Final.Native.Items
-					ev.Final.Native = &state
+					state.Data.Items = ev.Final.ProviderState.Data.Items
+					ev.Final.ProviderState = &state
 				}
 			}
 			return yield(ev, err)
@@ -598,7 +604,9 @@ stream:
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens + usage.CachedTokens() + usage.CacheWriteTokens()
 	done := llm.AssistantDone(content.String(), reasoning.String(), toolCalls, usage)
 	if native.hasThinking && !native.invalid && native.block == nil && stopped {
-		done.Final.Native = &llm.NativeState{Items: native.items}
+		done.Final.ProviderState = &llm.ProviderState{
+			Data: llm.ProviderData{Items: native.items},
+		}
 	}
 	yield(done, nil)
 }

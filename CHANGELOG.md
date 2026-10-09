@@ -18,6 +18,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Command palette submenus mark the current value (model, theme, permissions,
   thinking, debug, sub-agent models) with the same dot the branch picker uses,
   replacing the one-off checkmark.
+- Session files store Anthropic continuation state under `provider_state`
+  (was `native`). Sessions written by older builds still load, dropping the
+  stale signed thinking blocks on resume and falling back to the normalized
+  content.
 
 ### Deprecated
 
