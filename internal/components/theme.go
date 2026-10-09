@@ -43,6 +43,11 @@ func ThemeNames() []string {
 // DefaultTheme returns the curated Dark palette (product default).
 func DefaultTheme() Theme { return DarkTheme() }
 
+// DefaultThemeName is the display name of DefaultTheme. It is ThemeNames()[0]
+// (default first), so DefaultTheme() round-trips through ThemeByName — the
+// theme picker relies on it to mark the startup theme before any switch.
+func DefaultThemeName() string { return ThemeNames()[0] }
+
 // DarkTheme is Phi's curated dark palette — cool info, teal identity, mint success.
 func DarkTheme() Theme {
 	info := xui.Style{Fg: xui.RGBColor(0x7d, 0xc3, 0xff)}

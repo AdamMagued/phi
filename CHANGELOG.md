@@ -15,6 +15,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Command palette submenus mark the current value (model, theme, permissions,
+  thinking, debug, sub-agent models) with the same dot the branch picker uses,
+  replacing the one-off checkmark.
+
 ### Deprecated
 
 ### Removed

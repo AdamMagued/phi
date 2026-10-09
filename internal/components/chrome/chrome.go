@@ -38,6 +38,17 @@ const (
 	BashPrompt   = "$ "
 )
 
+// CurrentMarker is the leading "you are here" column for a list of choices:
+// the branch-picker dot when current, else a blank of equal width so labels
+// stay aligned. One glyph for the whole product — any list that marks a
+// current item uses this, never its own checkmark.
+func CurrentMarker(current bool) string {
+	if current {
+		return DotOn + " "
+	}
+	return "  "
+}
+
 // Sep joins hint fragments. One separator for the whole product.
 const Sep = " · "
 

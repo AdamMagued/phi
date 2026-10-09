@@ -12,6 +12,15 @@ func TestDefaultThemeIsDark(t *testing.T) {
 	assert.Equal(t, DarkTheme().Identity.Fg, DefaultTheme().Identity.Fg)
 }
 
+// The theme picker marks DefaultThemeName as the startup theme before any
+// palette switch, so the name must resolve to DefaultTheme itself.
+func TestDefaultThemeNameRoundTrips(t *testing.T) {
+	th, ok := ThemeByName(DefaultThemeName())
+	require.True(t, ok)
+	assert.Equal(t, DefaultTheme().ToolName.Fg, th.ToolName.Fg)
+	assert.Equal(t, DefaultTheme().Identity.Fg, th.Identity.Fg)
+}
+
 func TestThemesSeparateIdentityFromSuccess(t *testing.T) {
 	for _, name := range ThemeNames() {
 		th, ok := ThemeByName(name)
