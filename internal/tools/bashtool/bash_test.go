@@ -69,7 +69,7 @@ func TestBashToolDetailFromArgs(t *testing.T) {
 	tool := BashTool()
 
 	assert.Equal(t, "printf hi", tool.DetailFromArgs([]byte(`{"command":"  printf hi  \n"}`)))
-	assert.Equal(t, "", tool.DetailFromArgs([]byte(`{"command":"   \t  "}`)))
+	assert.Empty(t, tool.DetailFromArgs([]byte(`{"command":"   \t  "}`)))
 	assert.NotEmpty(t, tool.DetailFromArgs([]byte(`invalid json`)))
 }
 
